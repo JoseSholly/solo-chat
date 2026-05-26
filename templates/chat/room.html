@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chat &mdash; {{ room_name }}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: sans-serif; background: #ece5dd; height: 100vh; display: flex; flex-direction: column; }
+    header { background: #075e54; color: #fff; padding: 12px 16px; font-size: 1.1rem; }
+    #username-bar { background: #fff; padding: 10px 16px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #ccc; }
+    #username-bar input { flex: 1; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; }
+    #status { font-size: 0.75rem; color: #888; padding: 4px 16px; background: #f0f0f0; }
+    #chat-box { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .message { max-width: 70%; padding: 8px 12px; border-radius: 8px; background: #fff; word-break: break-word; }
+    .message.mine { align-self: flex-end; background: #dcf8c6; }
+    .message .sender { font-weight: 600; font-size: 0.8rem; color: #075e54; margin-bottom: 2px; }
+    .message .meta { font-size: 0.7rem; color: #888; margin-top: 4px; text-align: right; }
+    .message img { max-width: 240px; border-radius: 4px; display: block; }
+    .message audio { display: block; margin-top: 4px; }
+    #input-bar { background: #fff; padding: 10px 16px; display: flex; gap: 8px; align-items: center; border-top: 1px solid #ccc; }
+    #msg-input { flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 20px; outline: none; }
+    button { padding: 8px 14px; border: none; border-radius: 20px; cursor: pointer; background: #075e54; color: #fff; font-size: 0.85rem; }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+    label.upload-btn { padding: 8px 14px; border-radius: 20px; cursor: pointer; background: #128c7e; color: #fff; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+
+<header>Room: <strong>{{ room_name }}</strong></header>
+
+<div id="username-bar">
+  <strong>Username:</strong>
+  <input id="username-input" type="text" placeholder="Enter your name" maxlength="30" />
+  <button onclick="setUsername()">Join</button>
+</div>
+
+<div id="status">Connecting...</div>
+<div id="chat-box"></div>
+
+<div id="input-bar">
+  <input id="msg-input" type="text" placeholder="Type a message..." disabled />
+  <button id="send-btn" onclick="sendText()" disabled>Send</button>
+  <label class="upload-btn" for="img-input">Image
+    <input id="img-input" type="file" accept="image/*" style="display:none" onchange="uploadMedia(this,'image')" />
+  </label>
+  <label class="upload-btn" for="voice-input">Voice
+    <input id="voice-input" type="file" accept="audio/*" style="display:none" onchange="uploadMedia(this,'voice')" />
+  </label>
+</div>
+
+<script>
+  const ROOM_NAME = "{{ room_name }}";
+  let username = "";
+  let socket = null;
+
+  function setUsername() {
+    const val = document.getElementById("username-input").value.trim();
+    if (!val) return alert("Please enter a username.");
+    username = val;
+    document.getElementById("username-input").disabled = true;
+    connectWebSocket();
+    loadHistory();
+  }
+
+  function connectWebSocket() {
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    socket = new WebSocket(`${proto}://${location.host}/ws/chat/${ROOM_NAME}/`);
+
+    socket.onopen = () => {
+      setStatus("Connected");
+      document.getElementById("msg-input").disabled = false;
+      document.getElementById("send-btn").disabled = false;
+    };
+    socket.onclose = () => setStatus("Disconnected — refresh to reconnect");
+    socket.onerror = () => setStatus("WebSocket error");
+    socket.onmessage = (e) => renderMessage(JSON.parse(e.data));
+  }
+
+  function sendText() {
+    const input = document.getElementById("msg-input");
+    const content = input.value.trim();
+    if (!content || !socket) return;
+    socket.send(JSON.stringify({ type: "text", username, content }));
+    input.value = "";
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("msg-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") sendText();
+    });
+  });
+
+  async function uploadMedia(input, messageType) {
+    if (!username) { alert("Please set a username first."); return; }
+    const file = input.files[0];
+    if (!file) return;
+
+    setStatus("Uploading...");
+    const form = new FormData();
+    form.append("file", file);
+    form.append("username", username);
+    form.append("message_type", messageType);
+
+    try {
+      const res = await fetch(`/api/rooms/${ROOM_NAME}/upload/`, { method: "POST", body: form });
+      if (!res.ok) throw new Error((await res.json()).error || "Upload failed");
+      const data = await res.json();
+      setStatus("Connected");
+      socket.send(JSON.stringify({
+        type: messageType,
+        username,
+        message_id: data.id,
+        file_url: data.file_url,
+        timestamp: data.timestamp,
+      }));
+    } catch (err) {
+      setStatus("Upload error: " + err.message);
+    }
+
+    input.value = "";
+  }
+
+  async function loadHistory() {
+    const res = await fetch(`/api/rooms/${ROOM_NAME}/messages/`);
+    const messages = await res.json();
+    messages.forEach(renderMessage);
+    scrollToBottom();
+  }
+
+  function renderMessage(data) {
+    const chatBox = document.getElementById("chat-box");
+    const isMine = data.username === username;
+    const type = data.message_type || data.type;
+
+    let body = "";
+    if (type === "text") {
+      body = `<div>${escapeHtml(data.content)}</div>`;
+    } else if (type === "image") {
+      body = `<img src="${data.file_url}" alt="image" loading="lazy" />`;
+    } else if (type === "voice") {
+      body = `<audio controls src="${data.file_url}"></audio>`;
+    }
+
+    const ts = data.timestamp ? new Date(data.timestamp).toLocaleTimeString() : "";
+    const div = document.createElement("div");
+    div.className = "message" + (isMine ? " mine" : "");
+    div.innerHTML = `
+      <div class="sender">${escapeHtml(data.username)}</div>
+      ${body}
+      <div class="meta">${ts}</div>
+    `;
+
+    chatBox.appendChild(div);
+    scrollToBottom();
+  }
+
+  function scrollToBottom() {
+    const box = document.getElementById("chat-box");
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function setStatus(msg) {
+    document.getElementById("status").textContent = msg;
+  }
+
+  function escapeHtml(text) {
+    const d = document.createElement("div");
+    d.appendChild(document.createTextNode(text || ""));
+    return d.innerHTML;
+  }
+</script>
+
+</body>
+</html>

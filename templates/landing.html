@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ChatRooms — Real-time group chat, no friction</title>
+  <meta name="description" content="Create a room, share the link, start talking. Real-time chat with text and voice notes. No installs, no setup.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset ─────────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #0a0a0f;
+      --surface:      #111118;
+      --surface-2:    #15151e;
+      --accent:       #6366f1;
+      --accent-dim:   rgba(99,102,241,0.12);
+      --accent-glow:  rgba(99,102,241,0.18);
+      --text:         #ffffff;
+      --text-body:    rgba(255,255,255,0.70);
+      --text-muted:   rgba(255,255,255,0.40);
+      --border:       rgba(255,255,255,0.08);
+      --border-accent:rgba(99,102,241,0.38);
+      --radius:       12px;
+      --radius-sm:    8px;
+      --radius-full:  9999px;
+      --nav-h:        64px;
+      --max-w:        1100px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    a { color: inherit; text-decoration: none; }
+
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+
+    /* ── Nav ───────────────────────────────────────────────────────────────── */
+    .nav {
+      position: fixed;
+      inset: 0 0 auto 0;
+      z-index: 100;
+      height: var(--nav-h);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      background: rgba(10,10,15,0.72);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid transparent;
+      transition: border-color 0.3s, background 0.3s;
+    }
+    .nav.scrolled {
+      border-bottom-color: var(--border);
+      background: rgba(10,10,15,0.92);
+    }
+    .nav-inner {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      width: 100%;
+      display: flex;
+      align-items: center;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 17px;
+      letter-spacing: -0.01em;
+    }
+    .nav-brand-icon {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .nav-spacer { flex: 1; }
+    .nav-links { display: flex; align-items: center; gap: 6px; }
+
+    .btn-ghost-nav {
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-body);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: color 0.2s;
+      display: inline-block;
+    }
+    .btn-ghost-nav:hover { color: var(--text); }
+
+    .btn-accent-sm {
+      padding: 8px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      background: var(--accent);
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.2s, box-shadow 0.2s, transform 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-accent-sm:hover {
+      opacity: 0.88;
+      box-shadow: 0 4px 20px var(--accent-glow);
+      transform: translateY(-1px);
+    }
+
+    /* ── Hero ──────────────────────────────────────────────────────────────── */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: var(--nav-h) 24px 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-glow {
+      position: absolute;
+      top: 15%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 900px;
+      height: 700px;
+      background: radial-gradient(ellipse at center, rgba(99,102,241,0.11) 0%, transparent 68%);
+      pointer-events: none;
+    }
+    .hero-content {
+      position: relative;
+      max-width: 840px;
+      z-index: 1;
+    }
+    .hero-overline {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 28px;
+      opacity: 0;
+      transform: translateY(14px);
+      animation: fadeUp 0.6s ease-out 0s forwards;
+    }
+    .hero-headline {
+      font-size: clamp(42px, 7.5vw, 78px);
+      font-weight: 700;
+      line-height: 1.08;
+      letter-spacing: -0.025em;
+      margin-bottom: 26px;
+      opacity: 0;
+      transform: translateY(14px);
+      animation: fadeUp 0.6s ease-out 0.1s forwards;
+    }
+    .hero-headline em { font-style: normal; color: var(--accent); }
+
+    .hero-sub {
+      font-size: 18px;
+      color: var(--text-body);
+      max-width: 500px;
+      margin: 0 auto 42px;
+      line-height: 1.72;
+      opacity: 0;
+      transform: translateY(14px);
+      animation: fadeUp 0.6s ease-out 0.25s forwards;
+    }
+    .hero-ctas {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 30px;
+      opacity: 0;
+      transform: translateY(14px);
+      animation: fadeUp 0.6s ease-out 0.4s forwards;
+    }
+    .btn-hero-primary {
+      padding: 14px 30px;
+      border-radius: var(--radius-sm);
+      font-size: 16px;
+      font-weight: 600;
+      color: #fff;
+      background: var(--accent);
+      border: none;
+      cursor: pointer;
+      transition: box-shadow 0.2s, transform 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-hero-primary:hover {
+      box-shadow: 0 8px 36px var(--accent-glow);
+      transform: translateY(-2px);
+    }
+    .btn-hero-ghost {
+      padding: 13px 30px;
+      border-radius: var(--radius-sm);
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-body);
+      background: transparent;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s, transform 0.2s;
+      display: inline-block;
+    }
+    .btn-hero-ghost:hover {
+      color: var(--text);
+      border-color: rgba(255,255,255,0.22);
+      transform: translateY(-2px);
+    }
+    .hero-trust {
+      font-size: 13px;
+      color: var(--text-muted);
+      opacity: 0;
+      animation: fadeUp 0.6s ease-out 0.52s forwards;
+    }
+    .hero-trust .sep { margin: 0 8px; opacity: 0.35; }
+
+    /* ── Ticker ─────────────────────────────────────────────────────────────── */
+    .ticker-section {
+      overflow: hidden;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .ticker-track {
+      display: flex;
+      width: max-content;
+      animation: ticker 32s linear infinite;
+    }
+    .ticker-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 13px 40px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      white-space: nowrap;
+      border-right: 1px solid var(--border);
+    }
+    .ticker-dot {
+      width: 5px; height: 5px;
+      background: var(--accent);
+      border-radius: 50%;
+      opacity: 0.55;
+      flex-shrink: 0;
+    }
+
+    /* ── Section shell ──────────────────────────────────────────────────────── */
+    .section {
+      padding: 120px 24px;
+    }
+    .section-inner {
+      max-width: var(--max-w);
+      margin: 0 auto;
+    }
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.13em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 14px;
+    }
+    .section-title {
+      font-size: clamp(28px, 4vw, 44px);
+      font-weight: 700;
+      letter-spacing: -0.022em;
+      line-height: 1.18;
+      margin-bottom: 16px;
+    }
+    .section-sub {
+      font-size: 17px;
+      color: var(--text-body);
+      max-width: 520px;
+      margin: 0 auto;
+      line-height: 1.72;
+    }
+
+    /* ── How It Works ───────────────────────────────────────────────────────── */
+    .hiw-header {
+      text-align: center;
+      margin-bottom: 72px;
+    }
+    .hiw-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    .hiw-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 40px 32px 36px;
+      position: relative;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.5s ease, transform 0.5s ease;
+    }
+    .hiw-card.visible { opacity: 1; transform: translateY(0); }
+    .hiw-number {
+      position: absolute;
+      top: 12px; right: 20px;
+      font-size: 88px;
+      font-weight: 700;
+      color: var(--accent);
+      opacity: 0.055;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      pointer-events: none;
+      user-select: none;
+    }
+    .hiw-icon {
+      width: 44px; height: 44px;
+      background: var(--accent-dim);
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--accent);
+      margin-bottom: 22px;
+    }
+    .hiw-card-title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 10px;
+    }
+    .hiw-card-desc {
+      font-size: 15px;
+      color: var(--text-body);
+      line-height: 1.65;
+    }
+
+    /* ── Mock preview ───────────────────────────────────────────────────────── */
+    .mock-section {
+      padding: 80px 24px 120px;
+      text-align: center;
+    }
+    .mock-header { margin-bottom: 56px; }
+    .mock-header .section-title { text-align: center; }
+    .mock-header .section-label { text-align: center; }
+
+    .browser-chrome {
+      max-width: 760px;
+      margin: 0 auto;
+      background: var(--surface-2);
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.04),
+        0 0 80px rgba(99,102,241,0.14),
+        0 48px 96px rgba(0,0,0,0.55);
+      overflow: hidden;
+      animation: float 6s ease-in-out infinite;
+      will-change: transform;
+      text-align: left;
+    }
+    .browser-bar {
+      height: 44px;
+      background: #0e0e16;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .browser-dot {
+      width: 11px; height: 11px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .bd-red   { background: #ff5f57; }
+    .bd-amber { background: #febc2e; }
+    .bd-green { background: #28c840; }
+    .browser-url {
+      flex: 1;
+      height: 24px;
+      background: rgba(255,255,255,0.05);
+      border-radius: var(--radius-full);
+      margin: 0 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .mock-room-header {
+      display: flex;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+    }
+    .mock-room-icon {
+      width: 36px; height: 36px;
+      background: var(--accent);
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; color: #fff;
+      flex-shrink: 0;
+    }
+    .mock-room-name { font-size: 15px; font-weight: 700; }
+    .mock-room-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .mock-copy-btn {
+      margin-left: auto;
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 12px; font-weight: 600;
+      flex-shrink: 0;
+    }
+    .mock-chat {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .mock-msg {
+      display: flex; flex-direction: column;
+      max-width: 72%;
+    }
+    .mock-msg.own  { align-self: flex-end;   align-items: flex-end; }
+    .mock-msg.other { align-self: flex-start; align-items: flex-start; }
+    .mock-sender { font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+    .mock-bubble {
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .mock-msg.own  .mock-bubble {
+      background: var(--accent); color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+    .mock-msg.other .mock-bubble {
+      background: rgba(255,255,255,0.07); color: var(--text-body);
+      border-bottom-left-radius: 4px;
+    }
+    .mock-voice {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border-bottom-left-radius: 4px;
+      background: rgba(255,255,255,0.07);
+      min-width: 190px;
+    }
+    .mock-play {
+      width: 28px; height: 28px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .mock-wave { display: flex; align-items: center; gap: 2.5px; height: 20px; }
+    .mock-wave-bar {
+      width: 3px; border-radius: 2px;
+      background: rgba(255,255,255,0.3);
+    }
+    .mock-wave-bar:nth-child(1)  { height: 7px; }
+    .mock-wave-bar:nth-child(2)  { height: 13px; }
+    .mock-wave-bar:nth-child(3)  { height: 9px; }
+    .mock-wave-bar:nth-child(4)  { height: 17px; }
+    .mock-wave-bar:nth-child(5)  { height: 11px; }
+    .mock-wave-bar:nth-child(6)  { height: 15px; }
+    .mock-wave-bar:nth-child(7)  { height: 8px; }
+    .mock-wave-bar:nth-child(8)  { height: 13px; }
+    .mock-wave-bar:nth-child(9)  { height: 10px; }
+    .mock-wave-bar:nth-child(10) { height: 6px; }
+    .mock-voice-dur { font-size: 11px; color: var(--text-muted); }
+    .mock-time { font-size: 10px; color: var(--text-muted); margin-top: 5px; }
+    .mock-input-bar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+    }
+    .mock-input {
+      flex: 1; height: 38px;
+      background: rgba(255,255,255,0.05);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+    }
+    .mock-send {
+      width: 38px; height: 38px;
+      background: var(--accent);
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* ── Feature grid ───────────────────────────────────────────────────────── */
+    .feat-header {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+    .feat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+    .feat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 28px 32px;
+      transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+    }
+    .feat-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--border-accent);
+      box-shadow: 0 8px 32px rgba(99,102,241,0.12);
+    }
+    .feat-icon {
+      width: 40px; height: 40px;
+      background: var(--accent-dim);
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--accent);
+      margin-bottom: 18px;
+    }
+    .feat-title { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
+    .feat-desc  { font-size: 14px; color: var(--text-body); line-height: 1.6; }
+
+    /* ── Final CTA ──────────────────────────────────────────────────────────── */
+    .cta-section {
+      padding: 140px 24px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .cta-glow {
+      position: absolute;
+      bottom: 5%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 800px; height: 600px;
+      background: radial-gradient(ellipse at center, rgba(99,102,241,0.10) 0%, transparent 68%);
+      pointer-events: none;
+    }
+    .cta-content {
+      position: relative;
+      z-index: 1;
+      max-width: 620px;
+      margin: 0 auto;
+    }
+    .cta-title {
+      font-size: clamp(32px, 5vw, 54px);
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1.14;
+      margin-bottom: 18px;
+    }
+    .cta-sub {
+      font-size: 17px;
+      color: var(--text-body);
+      margin-bottom: 42px;
+      line-height: 1.7;
+    }
+    .btn-cta {
+      padding: 16px 44px;
+      border-radius: var(--radius-sm);
+      font-size: 17px;
+      font-weight: 700;
+      color: #fff;
+      background: var(--accent);
+      border: none;
+      cursor: pointer;
+      transition: box-shadow 0.2s, transform 0.2s;
+      letter-spacing: -0.01em;
+      display: inline-block;
+    }
+    .btn-cta:hover {
+      box-shadow: 0 10px 44px rgba(99,102,241,0.44);
+      transform: translateY(-2px);
+    }
+
+    /* ── Footer ─────────────────────────────────────────────────────────────── */
+    .footer {
+      padding: 24px;
+      border-top: 1px solid var(--border);
+    }
+    .footer-inner {
+      max-width: var(--max-w);
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+    .footer-left {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 14px; color: var(--text-muted);
+    }
+    .footer-brand { font-weight: 700; color: var(--text-body); }
+    .footer-links { display: flex; gap: 24px; }
+    .footer-links a {
+      font-size: 13px; color: var(--text-muted);
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: var(--text-body); }
+
+    /* ── Keyframes ──────────────────────────────────────────────────────────── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes ticker {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50%       { transform: translateY(-7px); }
+    }
+
+    /* ── Responsive ─────────────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .section        { padding: 80px 20px; }
+      .mock-section   { padding: 60px 20px 80px; }
+      .cta-section    { padding: 100px 20px; }
+
+      .hiw-grid  { grid-template-columns: 1fr; gap: 14px; }
+      .feat-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+
+      .hero-ctas { flex-direction: column; align-items: stretch; max-width: 280px; margin-left: auto; margin-right: auto; }
+      .btn-hero-primary, .btn-hero-ghost { justify-content: center; }
+
+      .nav-links .btn-ghost-nav { display: none; }
+
+      .hiw-number { font-size: 64px; }
+      .browser-chrome { border-radius: 12px; }
+    }
+    @media (max-width: 480px) {
+      .feat-grid { grid-template-columns: 1fr; }
+      .footer-inner { flex-direction: column; align-items: flex-start; }
+    }
+
+    /* ── Reduced motion ─────────────────────────────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      .hero-overline, .hero-headline, .hero-sub, .hero-ctas, .hero-trust {
+        animation: none; opacity: 1; transform: none;
+      }
+      .ticker-track  { animation: none; }
+      .browser-chrome { animation: none; }
+      .hiw-card      { opacity: 1; transform: none; transition: none; }
+      .btn-hero-primary:hover, .btn-hero-ghost:hover,
+      .btn-accent-sm:hover, .btn-cta:hover { transform: none; }
+      .feat-card:hover { transform: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ───────────────────────────────────────────────────────────────── -->
+<nav class="nav" id="nav" aria-label="Main navigation">
+  <div class="nav-inner">
+    <a class="nav-brand" href="/" aria-label="ChatRooms home">
+      <div class="nav-brand-icon" aria-hidden="true">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      </div>
+      ChatRooms
+    </a>
+    <div class="nav-spacer"></div>
+    <div class="nav-links">
+      <a href="/login/" class="btn-ghost-nav">Sign In</a>
+      <a href="/signup/" class="btn-accent-sm">
+        Get Started
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+        </svg>
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Hero ──────────────────────────────────────────────────────────────── -->
+<section class="hero" aria-labelledby="hero-heading">
+  <div class="hero-glow" aria-hidden="true"></div>
+  <div class="hero-content">
+    <p class="hero-overline">Real-time rooms · No friction</p>
+    <h1 class="hero-headline" id="hero-heading">
+      Create a room.<br>Share the link.<br><em>Start talking.</em>
+    </h1>
+    <p class="hero-sub">
+      Instant group chat with text and voice notes.
+      No installs, no setup — share a link and everyone's in.
+    </p>
+    <div class="hero-ctas">
+      <a href="/signup/" class="btn-hero-primary">
+        Create a Room
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+        </svg>
+      </a>
+      <a href="#how-it-works" class="btn-hero-ghost">See How It Works</a>
+    </div>
+    <p class="hero-trust">
+      No account required to join
+      <span class="sep" aria-hidden="true">·</span>
+      Works in your browser
+      <span class="sep" aria-hidden="true">·</span>
+      Free forever
+    </p>
+  </div>
+</section>
+
+<!-- ── Ticker ────────────────────────────────────────────────────────────── -->
+<div class="ticker-section" aria-hidden="true">
+  <div class="ticker-track">
+    <div class="ticker-item"><span class="ticker-dot"></span>Shareable invite links</div>
+    <div class="ticker-item"><span class="ticker-dot"></span>Voice note support</div>
+    <div class="ticker-item"><span class="ticker-dot"></span>Real-time delivery</div>
+    <div class="ticker-item"><span class="ticker-dot"></span>Room-based privacy</div>
+    <div class="ticker-item"><span class="ticker-dot"></span>See who's online</div>
+    <div class="ticker-item"><span class="ticker-dot"></span>Message history</div>
+    <div class="ticker-item"><span class="ticker-dot"></span>No downloads needed</div>
+    <div class="ticker-item"><span class="ticker-dot"></span>JWT-secured access</div>
+    <!-- Duplicate for seamless loop -->
+    <div class="ticker-item"><span class="ticker-dot"></span>Shareable invite links</div>
+    <div class="ticker-item"><span class="ticker-dot"></span>Voice note support</div>
+    <div class="ticker-item"><span class="ticker-dot"></span>Real-time delivery</div>
+    <div class="ticker-item"><span class="ticker-dot"></span>Room-based privacy</div>
+    <div class="ticker-item"><span class="ticker-dot"></span>See who's online</div>
+    <div class="ticker-item"><span class="ticker-dot"></span>Message history</div>
+    <div class="ticker-item"><span class="ticker-dot"></span>No downloads needed</div>
+    <div class="ticker-item"><span class="ticker-dot"></span>JWT-secured access</div>
+  </div>
+</div>
+
+<!-- ── How It Works ───────────────────────────────────────────────────────── -->
+<section class="section" id="how-it-works" aria-labelledby="hiw-heading">
+  <div class="section-inner">
+    <div class="hiw-header">
+      <p class="section-label">Simple by design</p>
+      <h2 class="section-title" id="hiw-heading">Up and running in seconds</h2>
+      <p class="section-sub">Three steps from zero to chatting. No configuration, no waiting.</p>
+    </div>
+    <div class="hiw-grid">
+
+      <article class="hiw-card" aria-labelledby="hiw-1">
+        <div class="hiw-number" aria-hidden="true">01</div>
+        <div class="hiw-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <h3 class="hiw-card-title" id="hiw-1">Create a Room</h3>
+        <p class="hiw-card-desc">Give your room a name and optional description. Your room is live and ready in under five seconds.</p>
+      </article>
+
+      <article class="hiw-card" aria-labelledby="hiw-2">
+        <div class="hiw-number" aria-hidden="true">02</div>
+        <div class="hiw-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+        </div>
+        <h3 class="hiw-card-title" id="hiw-2">Share the Link</h3>
+        <p class="hiw-card-desc">Copy your unique invite URL and send it anywhere — a message, email, or post. Recipients join in one click.</p>
+      </article>
+
+      <article class="hiw-card" aria-labelledby="hiw-3">
+        <div class="hiw-number" aria-hidden="true">03</div>
+        <div class="hiw-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8"  y1="23" x2="16" y2="23"/>
+          </svg>
+        </div>
+        <h3 class="hiw-card-title" id="hiw-3">Chat Together</h3>
+        <p class="hiw-card-desc">Members join and start messaging instantly — text, voice notes, and live presence so you always know who's there.</p>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── UI Mock Preview ────────────────────────────────────────────────────── -->
+<section class="mock-section" aria-label="App interface preview">
+  <div class="section-inner">
+    <div class="mock-header">
+      <p class="section-label">See it in action</p>
+      <h2 class="section-title">Everything you need, nothing you don't</h2>
+    </div>
+
+    <div class="browser-chrome"
+         role="img"
+         aria-label="Preview of ChatRooms showing a live chat room with text and voice messages">
+      <div class="browser-bar">
+        <div class="browser-dot bd-red"></div>
+        <div class="browser-dot bd-amber"></div>
+        <div class="browser-dot bd-green"></div>
+        <div class="browser-url">chatrooms.app/dashboard</div>
+      </div>
+
+      <div class="mock-room-header">
+        <div class="mock-room-icon">D</div>
+        <div>
+          <div class="mock-room-name">Design Team</div>
+          <div class="mock-room-meta">6 members &nbsp;·&nbsp; 3 online</div>
+        </div>
+        <div class="mock-copy-btn">Copy Invite Link</div>
+      </div>
+
+      <div class="mock-chat">
+        <div class="mock-msg other">
+          <div class="mock-sender">sarah_k</div>
+          <div class="mock-bubble">Hey team! Just pushed the new mockups to Figma 👋</div>
+          <div class="mock-time">2:14 PM</div>
+        </div>
+        <div class="mock-msg own">
+          <div class="mock-bubble">Looks great — love the new nav treatment</div>
+          <div class="mock-time">2:16 PM</div>
+        </div>
+        <div class="mock-msg other">
+          <div class="mock-sender">alex_r</div>
+          <div class="mock-voice">
+            <div class="mock-play" aria-hidden="true">
+              <svg width="9" height="11" viewBox="0 0 9 11" fill="white">
+                <path d="M0 0l9 5.5-9 5.5z"/>
+              </svg>
+            </div>
+            <div class="mock-wave" aria-hidden="true">
+              <div class="mock-wave-bar"></div><div class="mock-wave-bar"></div>
+              <div class="mock-wave-bar"></div><div class="mock-wave-bar"></div>
+              <div class="mock-wave-bar"></div><div class="mock-wave-bar"></div>
+              <div class="mock-wave-bar"></div><div class="mock-wave-bar"></div>
+              <div class="mock-wave-bar"></div><div class="mock-wave-bar"></div>
+            </div>
+            <span class="mock-voice-dur">0:14</span>
+          </div>
+          <div class="mock-time">2:18 PM</div>
+        </div>
+        <div class="mock-msg own">
+          <div class="mock-bubble">Agreed on the spacing — updating it now</div>
+          <div class="mock-time">2:20 PM</div>
+        </div>
+      </div>
+
+      <div class="mock-input-bar">
+        <div class="mock-input" aria-hidden="true"></div>
+        <div class="mock-send" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white"
+               stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"/>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── Feature Grid ───────────────────────────────────────────────────────── -->
+<section class="section" aria-labelledby="feat-heading">
+  <div class="section-inner">
+    <div class="feat-header">
+      <p class="section-label">Built right</p>
+      <h2 class="section-title" id="feat-heading">Every detail, considered</h2>
+      <p class="section-sub">Scoped for async-friendly group chat — everything you need, nothing that gets in the way.</p>
+    </div>
+    <div class="feat-grid">
+
+      <article class="feat-card">
+        <div class="feat-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <h3 class="feat-title">Instant Rooms</h3>
+        <p class="feat-desc">Create a named room in seconds. No approval, no waiting — it's live immediately.</p>
+      </article>
+
+      <article class="feat-card">
+        <div class="feat-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8"  y1="23" x2="16" y2="23"/>
+          </svg>
+        </div>
+        <h3 class="feat-title">Voice Notes</h3>
+        <p class="feat-desc">Record and share audio messages. Perfect when text doesn't quite cut it.</p>
+      </article>
+
+      <article class="feat-card">
+        <div class="feat-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+          </svg>
+        </div>
+        <h3 class="feat-title">Invite Links</h3>
+        <p class="feat-desc">Each room has a unique shareable URL. Send it anywhere, revoke it anytime.</p>
+      </article>
+
+      <article class="feat-card">
+        <div class="feat-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+            <circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+            <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </div>
+        <h3 class="feat-title">Live Presence</h3>
+        <p class="feat-desc">See who's online in real time. Join and leave events keep everyone in the loop.</p>
+      </article>
+
+      <article class="feat-card">
+        <div class="feat-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+        </div>
+        <h3 class="feat-title">Message History</h3>
+        <p class="feat-desc">Join mid-conversation and catch up. The last 50 messages are always waiting.</p>
+      </article>
+
+      <article class="feat-card">
+        <div class="feat-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+            <line x1="8"  y1="21" x2="16" y2="21"/>
+            <line x1="12" y1="17" x2="12" y2="21"/>
+          </svg>
+        </div>
+        <h3 class="feat-title">No Downloads</h3>
+        <p class="feat-desc">100% browser-based. Nothing to install, no app store, no update prompts.</p>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── Final CTA ─────────────────────────────────────────────────────────── -->
+<section class="cta-section" aria-labelledby="cta-heading">
+  <div class="cta-glow" aria-hidden="true"></div>
+  <div class="cta-content">
+    <h2 class="cta-title" id="cta-heading">Ready to start a conversation?</h2>
+    <p class="cta-sub">Create a room in seconds. Free, browser-based, no credit card required.</p>
+    <a href="/signup/" class="btn-cta">Create Your First Room</a>
+  </div>
+</section>
+
+<!-- ── Footer ────────────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-left">
+      <span class="footer-brand">ChatRooms</span>
+      <span>© <span id="footer-year"></span></span>
+    </div>
+    <nav class="footer-links" aria-label="Footer links">
+      <a href="#">Privacy</a>
+      <a href="#">Terms</a>
+      <a href="https://github.com/josesholly/solo-chat" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+  // Footer year
+  document.getElementById('footer-year').textContent = new Date().getFullYear();
+
+  // Nav scroll border
+  const nav = document.getElementById('nav');
+  let ticking = false;
+  window.addEventListener('scroll', () => {
+    if (!ticking) {
+      requestAnimationFrame(() => {
+        nav.classList.toggle('scrolled', window.scrollY > 20);
+        ticking = false;
+      });
+      ticking = true;
+    }
+  }, { passive: true });
+
+  // How It Works — scroll reveal with stagger
+  const hiwCards = document.querySelectorAll('.hiw-card');
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (reducedMotion) {
+    hiwCards.forEach(c => c.classList.add('visible'));
+  } else {
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const idx = Array.from(hiwCards).indexOf(entry.target);
+        setTimeout(() => entry.target.classList.add('visible'), idx * 150);
+        obs.unobserve(entry.target);
+      });
+    }, { threshold: 0.15 });
+    hiwCards.forEach(c => obs.observe(c));
+  }
+</script>
+</body>
+</html>

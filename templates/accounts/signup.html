@@ -1,0 +1,141 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign Up — ChatRooms</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+  <div class="auth-page">
+    <div class="auth-card">
+
+      <div class="auth-brand">
+        <div class="auth-brand-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <span class="auth-brand-name">ChatRooms</span>
+      </div>
+
+      <h1 class="auth-heading">Create an account</h1>
+      <p class="auth-subheading">Join and start chatting in rooms</p>
+
+      <form class="auth-form" id="signup-form" novalidate>
+        <div id="form-error" class="form-error"></div>
+
+        <div class="form-group">
+          <label class="form-label" for="display-name">Display Name</label>
+          <input class="form-input" type="text" id="display-name"
+                 placeholder="Your name" autocomplete="name" required>
+          <span class="field-error" id="err-display-name"></span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="username">Username</label>
+          <input class="form-input" type="text" id="username"
+                 placeholder="letters, numbers, underscores" autocomplete="username" required>
+          <span class="field-error" id="err-username"></span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="email">Email</label>
+          <input class="form-input" type="email" id="email"
+                 placeholder="you@example.com" autocomplete="email" required>
+          <span class="field-error" id="err-email"></span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password</label>
+          <input class="form-input" type="password" id="password"
+                 placeholder="at least 8 characters" autocomplete="new-password" required>
+          <span class="field-error" id="err-password"></span>
+        </div>
+
+        <button class="btn btn-primary btn-full" type="submit" id="submit-btn">
+          Create account
+        </button>
+      </form>
+
+      <p class="auth-footer">Already have an account? <a href="/login/">Log in</a></p>
+    </div>
+  </div>
+
+  <script src="{% static 'js/api.js' %}"></script>
+  <script src="{% static 'js/auth.js' %}"></script>
+  <script>
+    if (localStorage.getItem('cr_access')) window.location.replace('/dashboard/');
+
+    const FIELD_MAP = {
+      display_name: 'display-name',
+      username:     'username',
+      email:        'email',
+      password:     'password',
+    };
+
+    function clearErrors() {
+      document.getElementById('form-error').classList.remove('visible');
+      Object.values(FIELD_MAP).forEach(id => {
+        document.getElementById('err-' + id).textContent = '';
+        document.getElementById(id).classList.remove('error');
+      });
+    }
+
+    function showFieldErrors(errors) {
+      let handled = false;
+      for (const [field, domId] of Object.entries(FIELD_MAP)) {
+        if (errors[field]) {
+          const msg = Array.isArray(errors[field]) ? errors[field][0] : errors[field];
+          document.getElementById('err-' + domId).textContent = msg;
+          document.getElementById(domId).classList.add('error');
+          handled = true;
+        }
+      }
+      if (!handled) {
+        const gen = errors.non_field_errors?.[0] || JSON.stringify(errors);
+        const el  = document.getElementById('form-error');
+        el.textContent = gen;
+        el.classList.add('visible');
+      }
+    }
+
+    document.getElementById('signup-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearErrors();
+
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'Creating account…';
+
+      const result = await authSignup({
+        displayName: document.getElementById('display-name').value.trim(),
+        username:    document.getElementById('username').value.trim(),
+        email:       document.getElementById('email').value.trim(),
+        password:    document.getElementById('password').value,
+      });
+
+      if (result.ok) {
+        const next = new URLSearchParams(window.location.search).get('next') || '/dashboard/';
+        window.location.href = next;
+        return;
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Create account';
+
+      if (typeof result.errors === 'string') {
+        const el = document.getElementById('form-error');
+        el.textContent = result.errors;
+        el.classList.add('visible');
+      } else {
+        showFieldErrors(result.errors || {});
+      }
+    });
+  </script>
+</body>
+</html>

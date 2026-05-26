@@ -1,0 +1,114 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dashboard — ChatRooms</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <a class="navbar-brand" href="/dashboard/">
+      <div class="navbar-brand-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+      </div>
+      <span class="navbar-brand-name">ChatRooms</span>
+    </a>
+
+    <div class="navbar-spacer"></div>
+
+    <div class="user-menu">
+      <button class="user-menu-trigger" id="user-menu-trigger">
+        <div class="user-avatar" id="nav-user-avatar"></div>
+        <span class="user-display-name" id="nav-user-name"></span>
+        <span class="chevron">▾</span>
+      </button>
+      <div class="dropdown-menu" id="user-dropdown">
+        <button class="dropdown-item" id="btn-profile">Profile</button>
+        <div class="dropdown-divider"></div>
+        <button class="dropdown-item danger" id="btn-logout">Log out</button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- App layout -->
+  <div class="app-layout">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-title">Rooms</span>
+        <button class="sidebar-new-btn" id="btn-new-room">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="3" stroke-linecap="round">
+            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          New Room
+        </button>
+      </div>
+      <div class="room-list" id="room-list"></div>
+    </aside>
+
+    <!-- Main panel -->
+    <main class="main-panel" id="main-panel">
+      <div class="empty-state">
+        <div class="empty-state-icon">💬</div>
+        <div class="empty-state-title">No room selected</div>
+        <div class="empty-state-body">
+          Pick a room from the sidebar or create a new one to start chatting.
+        </div>
+        <button class="btn btn-primary" id="btn-new-room-empty">New Room</button>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- New Room modal -->
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">Create a new room</span>
+        <button class="modal-close" id="modal-close" aria-label="Close">&#x2715;</button>
+      </div>
+      <form id="new-room-form">
+        <div class="modal-body">
+          <div id="modal-error" class="form-error"></div>
+
+          <div class="form-group">
+            <label class="form-label" for="room-name-input">Room Name</label>
+            <input class="form-input" type="text" id="room-name-input"
+                   placeholder="e.g. design-team" maxlength="100" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="room-desc-input">Description <span style="color:var(--text-muted)">(optional)</span></label>
+            <textarea class="form-input" id="room-desc-input"
+                      placeholder="What's this room for?" rows="2"></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" id="modal-cancel">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="modal-submit">Create Room</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="{% static 'js/api.js' %}"></script>
+  <script src="{% static 'js/auth-guard.js' %}"></script>
+  <script src="{% static 'js/auth.js' %}"></script>
+  <script src="{% static 'js/dashboard.js' %}"></script>
+  <script src="{% static 'js/room.js' %}"></script>
+</body>
+</html>

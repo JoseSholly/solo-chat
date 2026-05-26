@@ -1,0 +1,109 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Join Room — ChatRooms</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+
+  <div class="join-page">
+    <div class="join-card" id="join-card">
+      <div class="loading-state"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="{% static 'js/api.js' %}"></script>
+  <script src="{% static 'js/auth-guard.js' %}"></script>
+  <script src="{% static 'js/auth.js' %}"></script>
+  <script>
+    const ROOM_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f97316','#14b8a6','#0ea5e9','#84cc16'];
+
+    function roomColor(name) {
+      let h = 0;
+      for (const c of (name || '')) h = ((h << 5) - h + c.charCodeAt(0)) | 0;
+      return ROOM_COLORS[Math.abs(h) % ROOM_COLORS.length];
+    }
+
+    function slugFromPath() {
+      // URL shape: /join/<slug>/
+      return window.location.pathname.split('/').filter(Boolean)[1] || null;
+    }
+
+    function renderError(msg) {
+      document.getElementById('join-card').innerHTML = `
+        <div class="empty-state-icon" style="font-size:40px;opacity:.5">⚠️</div>
+        <div class="join-room-name" style="margin-top:8px">Invalid Link</div>
+        <div class="join-room-desc">${escHtml(msg)}</div>
+        <a href="/dashboard/" class="btn btn-primary" style="margin-top:24px">Go to Dashboard</a>`;
+    }
+
+    async function init() {
+      const slug = slugFromPath();
+      if (!slug) { renderError('No invite token found in this URL.'); return; }
+
+      const res = await apiFetch(`/api/invite/${slug}/`);
+
+      if (!res.ok) {
+        renderError('This invite link is invalid or has expired.');
+        return;
+      }
+
+      const room = await res.json();
+
+      // Already a member — skip straight to the room
+      if (room.is_member) {
+        window.location.replace(`/dashboard/?room=${room.slug}`);
+        return;
+      }
+
+      // Show join confirmation card
+      const color = roomColor(room.name);
+      document.getElementById('join-card').innerHTML = `
+        <div class="join-icon" style="background:${color}">
+          ${escHtml((room.name || '?')[0].toUpperCase())}
+        </div>
+        <div class="join-room-name">${escHtml(room.name)}</div>
+        ${room.description
+          ? `<div class="join-room-desc">${escHtml(room.description)}</div>`
+          : ''}
+        <div class="join-member-count">
+          ${room.member_count} member${room.member_count !== 1 ? 's' : ''}
+        </div>
+        <div class="join-actions">
+          <a href="/dashboard/" class="btn btn-ghost btn-full">Cancel</a>
+          <button class="btn btn-primary btn-full" id="btn-join">Join Room</button>
+        </div>
+        <div id="join-error" class="form-error" style="margin-top:14px"></div>`;
+
+      document.getElementById('btn-join').addEventListener('click', async () => {
+        const btn    = document.getElementById('btn-join');
+        btn.disabled = true;
+        btn.textContent = 'Joining…';
+
+        const joinRes = await apiFetch(`/api/invite/${slug}/join/`, { method: 'POST' });
+
+        if (!joinRes.ok) {
+          const d      = await joinRes.json().catch(() => ({}));
+          const errEl  = document.getElementById('join-error');
+          errEl.textContent = d.error || 'Could not join room. Please try again.';
+          errEl.classList.add('visible');
+          btn.disabled    = false;
+          btn.textContent = 'Join Room';
+          return;
+        }
+
+        window.location.href = `/dashboard/?room=${room.slug}`;
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>

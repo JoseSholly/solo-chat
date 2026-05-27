@@ -1,6 +1,5 @@
 import os
 
-import dj_database_url
 from dotenv import load_dotenv
 from urllib.parse import urlparse, parse_qsl
 from .base import *
@@ -10,7 +9,7 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 
 DEBUG = False
 
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "").split(",")
+ALLOWED_HOSTS = [h for h in os.environ.get("ALLOWED_HOSTS", "").split(",") if h]
 
 # Railway terminates SSL at the proxy — trust the forwarded header instead of
 # redirecting internally (SECURE_SSL_REDIRECT=True would cause an infinite loop).
@@ -25,7 +24,7 @@ CSRF_COOKIE_SECURE = True
 # W008 is silenced because SSL redirect is intentionally delegated to Railway.
 SILENCED_SYSTEM_CHECKS = ["security.W008"]
 
-CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")
+CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if o]
 
 # ─── Database ────────────────────────────────────────────────────────────────
 # Add these at the top of your settings.py

@@ -1,9 +1,11 @@
 import os
 
 import dj_database_url
-
+from dotenv import load_dotenv
+from urllib.parse import urlparse, parse_qsl
 from .base import *
 
+load_dotenv()
 SECRET_KEY = os.environ["SECRET_KEY"]
 
 DEBUG = False
@@ -26,12 +28,24 @@ SILENCED_SYSTEM_CHECKS = ["security.W008"]
 CSRF_TRUSTED_ORIGINS = os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",")
 
 # ─── Database ────────────────────────────────────────────────────────────────
-# Railway injects DATABASE_URL automatically when a Postgres service is linked.
+# Add these at the top of your settings.py
+
+
+load_dotenv()
+
+# Replace the DATABASES section of your settings.py with this
+tmpPostgres = urlparse(os.getenv("DATABASE_URL"))
+
 DATABASES = {
-    "default": dj_database_url.config(
-        conn_max_age=600,
-        conn_health_checks=True,
-    )
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': tmpPostgres.path.replace('/', ''),
+        'USER': tmpPostgres.username,
+        'PASSWORD': tmpPostgres.password,
+        'HOST': tmpPostgres.hostname,
+        'PORT': 5432,
+        'OPTIONS': dict(parse_qsl(tmpPostgres.query)),
+    }
 }
 
 # ─── Channel layer ───────────────────────────────────────────────────────────
@@ -53,7 +67,18 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
 
 STORAGES = {
+    "default": {
+        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+    },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
     },
+}
+
+# ─── Cloudinary ──────────────────────────────────────────────────────────────
+CLOUDINARY_STORAGE = {
+    "CLOUD_NAME": os.environ["CLOUDINARY_CLOUD_NAME"],
+    "API_KEY":    os.environ["CLOUDINARY_API_KEY"],
+    "API_SECRET": os.environ["CLOUDINARY_API_SECRET"],
+    "DEFAULT_FOLDER": "solo-chat",
 }

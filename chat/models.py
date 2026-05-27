@@ -1,7 +1,14 @@
 import uuid
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import FileExtensionValidator
 from django.db import models
+
+
+def validate_file_size(value):
+    if value.size > 10 * 1024 * 1024:
+        raise ValidationError("File too large. Maximum allowed size is 10 MB.")
 
 
 class Room(models.Model):
@@ -57,7 +64,15 @@ class Message(models.Model):
     username     = models.CharField(max_length=50)
     message_type = models.CharField(max_length=10, choices=MessageType.choices, default=MessageType.TEXT)
     content      = models.TextField(blank=True, null=True)
-    file         = models.FileField(upload_to="uploads/%Y/%m/%d/", blank=True, null=True)
+    file         = models.FileField(
+        upload_to="uploads/%Y/%m/%d/",
+        blank=True,
+        null=True,
+        validators=[
+            FileExtensionValidator(["jpg", "jpeg", "png", "gif", "webp", "mp3", "ogg", "wav"]),
+            validate_file_size,
+        ],
+    )
     timestamp    = models.DateTimeField(auto_now_add=True)
 
     class Meta:

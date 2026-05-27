@@ -240,7 +240,8 @@ textarea.form-input { resize: vertical; min-height: 80px; }
 /* ── App layout ─────────────────────────────────────────────────────── */
 .app-layout {
   display: flex;
-  height: 100vh;
+  height: 100vh;       /* fallback for browsers without dvh */
+  height: 100dvh;      /* shrinks when the mobile keyboard opens */
   padding-top: var(--nav-h);
   overflow: hidden;
 }
@@ -611,6 +612,7 @@ textarea.form-input { resize: vertical; min-height: 80px; }
 
 .chat-input-bar {
   padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom)); /* iOS home indicator */
   border-top: 1px solid var(--border);
   display: flex; align-items: center; gap: 8px;
   background: var(--surface); flex-shrink: 0;

@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
   <title>Chat &mdash; {{ room_name }}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: sans-serif; background: #ece5dd; height: 100vh; display: flex; flex-direction: column; }
+    body { font-family: sans-serif; background: #ece5dd; height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
     header { background: #075e54; color: #fff; padding: 12px 16px; font-size: 1.1rem; }
     #username-bar { background: #fff; padding: 10px 16px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #ccc; }
     #username-bar input { flex: 1; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; }
@@ -18,7 +18,7 @@
     .message .meta { font-size: 0.7rem; color: #888; margin-top: 4px; text-align: right; }
     .message img { max-width: 240px; border-radius: 4px; display: block; }
     .message audio { display: block; margin-top: 4px; }
-    #input-bar { background: #fff; padding: 10px 16px; display: flex; gap: 8px; align-items: center; border-top: 1px solid #ccc; }
+    #input-bar { background: #fff; padding: 10px 16px; padding-bottom: max(10px, env(safe-area-inset-bottom)); display: flex; gap: 8px; align-items: center; border-top: 1px solid #ccc; }
     #msg-input { flex: 1; padding: 8px 12px; border: 1px solid #ccc; border-radius: 20px; outline: none; }
     button { padding: 8px 14px; border: none; border-radius: 20px; cursor: pointer; background: #075e54; color: #fff; font-size: 0.85rem; }
     button:disabled { background: #aaa; cursor: not-allowed; }

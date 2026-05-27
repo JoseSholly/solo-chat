@@ -546,6 +546,69 @@
     .feat-title { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 8px; }
     .feat-desc  { font-size: 14px; color: var(--text-body); line-height: 1.6; }
 
+    /* ── Security ───────────────────────────────────────────────────────────── */
+    .sec-header {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+    .sec-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+    .sec-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 40px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .sec-card:hover {
+      border-color: var(--border-accent);
+      box-shadow: 0 8px 32px rgba(99,102,241,0.10);
+    }
+    .sec-icon {
+      width: 44px; height: 44px;
+      background: var(--accent-dim);
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .sec-card-title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+    }
+    .sec-card-desc {
+      font-size: 15px;
+      color: var(--text-body);
+      line-height: 1.68;
+    }
+    .sec-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .sec-pill {
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      background: var(--accent-dim);
+      border: 1px solid rgba(99,102,241,0.22);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    @media (max-width: 768px) {
+      .sec-grid { grid-template-columns: 1fr; }
+    }
+
     /* ── Final CTA ──────────────────────────────────────────────────────────── */
     .cta-section {
       padding: 140px 24px;
@@ -975,6 +1038,66 @@
         </div>
         <h3 class="feat-title">No Downloads</h3>
         <p class="feat-desc">100% browser-based. Nothing to install, no app store, no update prompts.</p>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── Security ──────────────────────────────────────────────────────────── -->
+<section class="section" aria-labelledby="sec-heading">
+  <div class="section-inner">
+    <div class="sec-header">
+      <p class="section-label">Security</p>
+      <h2 class="section-title" id="sec-heading">Built for trust</h2>
+      <p class="section-sub">Production-grade security baked in at every layer, not bolted on after.</p>
+    </div>
+    <div class="sec-grid">
+
+      <article class="sec-card">
+        <div class="sec-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="sec-card-title">Secure WebSocket Communication</h3>
+          <p class="sec-card-desc">
+            Every WebSocket connection is authenticated via short-lived JWT tokens before a room
+            channel is joined. Messages are validated server-side and access control ensures
+            only room members can send or receive events.
+          </p>
+          <div class="sec-pills">
+            <span class="sec-pill">Token-based auth</span>
+            <span class="sec-pill">Message validation</span>
+            <span class="sec-pill">Access control</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="sec-card">
+        <div class="sec-icon" aria-hidden="true">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <path d="M9 15l2 2 4-4"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="sec-card-title">Safe Media Handling</h3>
+          <p class="sec-card-desc">
+            Uploads are gated behind DRF-authenticated endpoints with strict file-type allowlists
+            and a hard 10 MB size limit. Files are stored on Cloudinary — never on the
+            application server.
+          </p>
+          <div class="sec-pills">
+            <span class="sec-pill">File type validation</span>
+            <span class="sec-pill">Size limits</span>
+            <span class="sec-pill">DRF upload endpoints</span>
+          </div>
+        </div>
       </article>
 
     </div>

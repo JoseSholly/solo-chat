@@ -1,16 +1,21 @@
 import os
 
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
 from django.core.asgi import get_asgi_application
 
-import chat.routing
+# get_asgi_application() initializes the Django app registry.
+# chat.routing must be imported after this call or consumers that
+# touch models will raise AppRegistryNotReady at startup.
+django_asgi_app = get_asgi_application()
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")
+from chat import routing  # noqa: E402
 
 application = ProtocolTypeRouter({
-    "http": get_asgi_application(),
+    "http": django_asgi_app,
     "websocket": AllowedHostsOriginValidator(
-        URLRouter(chat.routing.websocket_urlpatterns)
+        URLRouter(routing.websocket_urlpatterns)
     ),
 })

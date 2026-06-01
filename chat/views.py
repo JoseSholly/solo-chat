@@ -92,6 +92,35 @@ class RoomCreateView(APIView):
         return Response(RoomSerializer(room, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 
+class RoomUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, slug):
+        room = RoomService.get_by_slug(slug)
+        if room is None:
+            return Response({"error": "Room not found.", "code": "not_found"}, status=status.HTTP_404_NOT_FOUND)
+        if room.creator_id != request.user.id:
+            return Response(
+                {"error": "Only the room creator can edit this room.", "code": "forbidden"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        name        = request.data.get("name", "").strip()
+        description = request.data.get("description", room.description).strip()
+
+        if not name:
+            return Response({"error": "Room name is required.", "code": "missing_name"}, status=status.HTTP_400_BAD_REQUEST)
+        if len(name) > 100:
+            return Response({"error": "Room name must be 100 characters or fewer.", "code": "name_too_long"}, status=status.HTTP_400_BAD_REQUEST)
+        if Room.objects.filter(name=name).exclude(pk=room.pk).exists():
+            return Response({"error": "A room with this name already exists.", "code": "name_taken"}, status=status.HTTP_400_BAD_REQUEST)
+
+        room.name        = name
+        room.description = description
+        room.save(update_fields=["name", "description"])
+        return Response(RoomSerializer(room, context={"request": request}).data)
+
+
 class RoomDeleteView(APIView):
     permission_classes = [IsAuthenticated]
 

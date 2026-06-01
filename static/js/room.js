@@ -61,6 +61,12 @@ const IMAGE_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
   <polyline points="21 15 16 10 5 21"/>
 </svg>`;
 
+const EDIT_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+</svg>`;
+
 const LEAVE_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -107,6 +113,9 @@ class RoomPanel {
 
   _render() {
     const r = this.room;
+    const editBtn = r.is_creator
+      ? `<button class="btn-icon" id="rp-edit" title="Edit room">${EDIT_SVG}</button>`
+      : '';
     const actionBtn = r.is_creator
       ? `<button class="btn-icon" id="rp-delete" title="Delete room" style="color:var(--error)">${TRASH_SVG}</button>`
       : `<button class="btn-icon" id="rp-leave"  title="Leave room">${LEAVE_SVG}</button>`;
@@ -128,6 +137,7 @@ class RoomPanel {
           <button class="btn-icon rp-members-btn" id="rp-members-btn" title="Members" aria-label="Toggle members">
             ${PEOPLE_SVG}
           </button>
+          ${editBtn}
           ${actionBtn}
         </div>
 
@@ -189,8 +199,10 @@ class RoomPanel {
 
     const leaveBtn  = document.getElementById('rp-leave');
     const deleteBtn = document.getElementById('rp-delete');
+    const editBtn   = document.getElementById('rp-edit');
     if (leaveBtn)  leaveBtn.addEventListener('click',  () => this._leaveRoom());
     if (deleteBtn) deleteBtn.addEventListener('click', () => this._deleteRoom());
+    if (editBtn)   editBtn.addEventListener('click',   () => this._openEditModal());
 
     this._el.send.addEventListener('click', () => this._sendText());
     this._el.input.addEventListener('keydown', (e) => {
@@ -247,6 +259,7 @@ class RoomPanel {
     const data = await res.json();
     this.room = { ...this.room, ...data.room };
     this._updateMeta();
+    this._syncEditButton();
 
     this._el.chat.innerHTML = '';
     if (data.messages.length === 0) {
@@ -318,6 +331,32 @@ class RoomPanel {
     const oc = this.onlineUsers.size;
     this._el.meta.textContent =
       `${mc} member${mc !== 1 ? 's' : ''}${oc > 0 ? ' · ' + oc + ' online' : ''}`;
+  }
+
+  _syncEditButton() {
+    const header = this.container.querySelector('.room-header');
+    if (!header) return;
+
+    const existing = header.querySelector('#rp-edit');
+
+    if (!this.room.is_creator) {
+      existing?.remove();
+      return;
+    }
+
+    if (existing) return; // already present
+
+    const btn = document.createElement('button');
+    btn.className = 'btn-icon';
+    btn.id        = 'rp-edit';
+    btn.title     = 'Edit room';
+    btn.innerHTML = EDIT_SVG;
+    btn.addEventListener('click', () => this._openEditModal());
+
+    // Insert before the delete/leave button
+    const actionBtn = header.querySelector('#rp-delete') || header.querySelector('#rp-leave');
+    if (actionBtn) actionBtn.before(btn);
+    else header.appendChild(btn);
   }
 
   // ── Messaging ─────────────────────────────────────────────────────────────
@@ -416,6 +455,115 @@ class RoomPanel {
     await loadDashboard();
     showEmptyPanel();
     history.pushState({}, '', '/dashboard/');
+  }
+
+  // ── Edit room ─────────────────────────────────────────────────────────────
+
+  _openEditModal() {
+    const existing = document.getElementById('rp-edit-modal-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'rp-edit-modal-overlay';
+    overlay.className = 'modal-overlay open';
+    overlay.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rp-edit-title">
+        <div class="modal-header">
+          <span class="modal-title" id="rp-edit-title">Edit Room</span>
+          <button class="modal-close" id="rp-edit-close" aria-label="Close">&#x2715;</button>
+        </div>
+        <form id="rp-edit-form">
+          <div class="modal-body">
+            <div id="rp-edit-error" class="form-error"></div>
+            <div class="form-group">
+              <label class="form-label" for="rp-edit-name">Room Name</label>
+              <input class="form-input" type="text" id="rp-edit-name"
+                     value="${escHtml(this.room.name)}" maxlength="100" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="rp-edit-desc">
+                Description <span style="color:var(--text-muted)">(optional)</span>
+              </label>
+              <textarea class="form-input" id="rp-edit-desc"
+                        rows="2">${escHtml(this.room.description || '')}</textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-ghost" id="rp-edit-cancel">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="rp-edit-submit">Save</button>
+          </div>
+        </form>
+      </div>`;
+
+    document.body.appendChild(overlay);
+
+    const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+
+    overlay.addEventListener('click',                    (e) => { if (e.target === overlay) close(); });
+    document.getElementById('rp-edit-close').addEventListener('click', close);
+    document.getElementById('rp-edit-cancel').addEventListener('click', close);
+    document.getElementById('rp-edit-form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      this._submitEdit(close);
+    });
+
+    document.getElementById('rp-edit-name').focus();
+  }
+
+  async _submitEdit(closeModal) {
+    const nameInput = document.getElementById('rp-edit-name');
+    const descInput = document.getElementById('rp-edit-desc');
+    const errorEl   = document.getElementById('rp-edit-error');
+    const submitBtn = document.getElementById('rp-edit-submit');
+
+    const name        = nameInput.value.trim();
+    const description = descInput.value.trim();
+
+    errorEl.textContent = '';
+    errorEl.classList.remove('visible');
+
+    if (!name) {
+      errorEl.textContent = 'Room name is required.';
+      errorEl.classList.add('visible');
+      nameInput.focus();
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving…';
+
+    const res = await apiFetch(`/api/rooms/${this.room.slug}/update/`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ name, description }),
+    });
+
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Save';
+
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      errorEl.textContent = d.error || 'Could not save changes.';
+      errorEl.classList.add('visible');
+      return;
+    }
+
+    const updated = await res.json();
+    this.room.name        = updated.name;
+    this.room.description = updated.description;
+
+    // Update header
+    const nameEl = this.container.querySelector('.room-header-name');
+    if (nameEl) nameEl.textContent = updated.name;
+
+    // Update sidebar
+    const sidebarItem = document.querySelector(`.room-item[data-slug="${updated.slug}"] .room-name`);
+    if (sidebarItem) sidebarItem.textContent = updated.name;
+
+    closeModal();
+    showToast('Room updated.');
   }
 
   // ── Render messages ───────────────────────────────────────────────────────

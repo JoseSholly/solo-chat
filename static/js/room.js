@@ -54,6 +54,13 @@ const MIC_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
   <line x1="8" y1="23" x2="16" y2="23"/>
 </svg>`;
 
+const IMAGE_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+  <circle cx="8.5" cy="8.5" r="1.5"/>
+  <polyline points="21 15 16 10 5 21"/>
+</svg>`;
+
 const LEAVE_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -132,7 +139,9 @@ class RoomPanel {
           <div class="chat-column">
             <div class="chat-area" id="rp-chat"></div>
             <div class="chat-input-bar">
+              <input type="file" id="rp-img-file"   accept="image/*" style="display:none">
               <input type="file" id="rp-voice-file" accept="audio/*" style="display:none">
+              <button class="btn-icon" id="rp-img-btn"   title="Send image"      disabled>${IMAGE_SVG}</button>
               <button class="btn-icon" id="rp-voice-btn" title="Send voice note" disabled>${MIC_SVG}</button>
               <input class="chat-input" type="text" id="rp-input"
                      placeholder="Message…" autocomplete="off" disabled>
@@ -154,6 +163,8 @@ class RoomPanel {
       chat:      document.getElementById('rp-chat'),
       input:     document.getElementById('rp-input'),
       send:      document.getElementById('rp-send'),
+      imgBtn:    document.getElementById('rp-img-btn'),
+      imgFile:   document.getElementById('rp-img-file'),
       voiceBtn:  document.getElementById('rp-voice-btn'),
       voiceFile: document.getElementById('rp-voice-file'),
       status:    document.getElementById('rp-status'),
@@ -186,6 +197,13 @@ class RoomPanel {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this._sendText(); }
     });
 
+    this._el.imgBtn.addEventListener('click', () => this._el.imgFile.click());
+    this._el.imgFile.addEventListener('change', () => {
+      const f = this._el.imgFile.files[0];
+      if (f) this._uploadImage(f);
+      this._el.imgFile.value = '';
+    });
+
     this._el.voiceBtn.addEventListener('click',  () => this._el.voiceFile.click());
     this._el.voiceFile.addEventListener('change', () => {
       const f = this._el.voiceFile.files[0];
@@ -195,6 +213,12 @@ class RoomPanel {
 
     this._el.chat.addEventListener('scroll', () => {
       this._userScrolled = !this._isAtBottom();
+    });
+
+    // Image click → lightbox
+    this._el.chat.addEventListener('click', (e) => {
+      const img = e.target.closest('img[data-lightbox-src]');
+      if (img) { this._openLightbox(img.dataset.lightboxSrc); return; }
     });
 
     // Avatar click → profile modal
@@ -306,6 +330,33 @@ class RoomPanel {
     this._el.input.value = '';
   }
 
+  async _uploadImage(file) {
+    this._enableInput(false);
+    showToast('Uploading…');
+
+    const form = new FormData();
+    form.append('file', file);
+    form.append('message_type', 'image');
+
+    const res = await apiFetch(`/api/rooms/${this.room.slug}/upload/`, {
+      method: 'POST',
+      body:   form,
+    });
+    this._enableInput(true);
+
+    if (!res.ok) { showToast('Upload failed.', 'error'); return; }
+    const msg = await res.json();
+
+    if (this.wsReady) {
+      this.ws.send(JSON.stringify({
+        type:      'image',
+        id:        msg.id,
+        file_url:  msg.file_url,
+        timestamp: msg.timestamp,
+      }));
+    }
+  }
+
   async _uploadVoice(file) {
     this._enableInput(false);
     showToast('Uploading…');
@@ -326,6 +377,7 @@ class RoomPanel {
     if (this.wsReady) {
       this.ws.send(JSON.stringify({
         type:      'voice',
+        id:        msg.id,
         file_url:  msg.file_url,
         timestamp: msg.timestamp,
       }));
@@ -381,7 +433,8 @@ class RoomPanel {
     if (data.message_type === 'voice') {
       bubbleContent = `<audio controls src="${escHtml(data.file_url || '')}"></audio>`;
     } else if (data.message_type === 'image') {
-      bubbleContent = `<img src="${escHtml(data.file_url || '')}" alt="image" loading="lazy">`;
+      const src = escHtml(data.file_url || '');
+      bubbleContent = `<img src="${src}" alt="image" loading="lazy" data-lightbox-src="${src}">`;
     } else {
       bubbleContent = escHtml(data.content || '');
     }
@@ -434,6 +487,31 @@ class RoomPanel {
     if (!this._userScrolled) this._scrollToBottom(true);
   }
 
+  _openLightbox(src) {
+    const overlay = document.createElement('div');
+    overlay.className = 'img-lightbox';
+    overlay.innerHTML = `
+      <button class="img-lightbox-close" aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+      <img src="${escHtml(src)}" alt="image">
+    `;
+    document.body.appendChild(overlay);
+
+    const close = () => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKey);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    overlay.querySelector('.img-lightbox-close').addEventListener('click', close);
+    document.addEventListener('keydown', onKey);
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   _markSeen() {
@@ -446,6 +524,7 @@ class RoomPanel {
   _enableInput(on) {
     this._el.input.disabled    = !on;
     this._el.send.disabled     = !on;
+    this._el.imgBtn.disabled   = !on;
     this._el.voiceBtn.disabled = !on;
   }
 

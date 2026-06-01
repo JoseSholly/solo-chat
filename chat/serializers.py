@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Message, Room, RoomMembership
+from .models import Message, Room
 
 
 class RoomSerializer(serializers.ModelSerializer):
@@ -70,7 +70,8 @@ class DashboardRoomSerializer(serializers.ModelSerializer):
         ]
 
     def get_member_count(self, obj):
-        return obj.memberships.count()
+        count = getattr(obj, "member_count_annotation", None)
+        return count if count is not None else obj.memberships.count()
 
     def get_is_creator(self, obj):
         request = self.context.get("request")
@@ -79,7 +80,7 @@ class DashboardRoomSerializer(serializers.ModelSerializer):
         return False
 
     def get_last_message(self, obj):
-        last = obj.messages.order_by("-timestamp").first()
+        last = self.context.get("last_message_map", {}).get(obj.id)
         if last is None:
             return None
         return {
@@ -90,6 +91,9 @@ class DashboardRoomSerializer(serializers.ModelSerializer):
         }
 
     def get_unread_count(self, obj):
+        unread_data = self.context.get("unread_data")
+        if unread_data is not None:
+            return unread_data.get(obj.id, 0)
         membership_map = self.context.get("membership_map", {})
         membership = membership_map.get(obj.id)
         if membership is None:

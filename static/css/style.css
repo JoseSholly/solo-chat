@@ -428,7 +428,7 @@ textarea.form-input { resize: vertical; min-height: 80px; }
 .message-row.other .message-bubble { background: var(--surface-raised); color: var(--text); border-bottom-left-radius: 4px; }
 
 .message-bubble audio { display: block; width: 220px; margin: 2px 0; }
-.message-bubble img   { max-width: 240px; border-radius: var(--radius-xs); display: block; }
+.message-bubble img   { max-width: 240px; border-radius: var(--radius-xs); display: block; cursor: zoom-in; }
 
 .message-time {
   font-size: 10px; color: var(--text-muted);
@@ -600,6 +600,51 @@ textarea.form-input { resize: vertical; min-height: 80px; }
 .profile-modal-actions {
   margin-top: 20px;
 }
+
+/* ── Image lightbox ─────────────────────────────────────────────────── */
+.img-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  cursor: zoom-out;
+  animation: lb-backdrop 0.18s ease;
+}
+@keyframes lb-backdrop {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.img-lightbox img {
+  max-width: 100%;
+  max-height: calc(100dvh - 40px);
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 48px rgba(0, 0, 0, 0.8);
+  cursor: default;
+  animation: lb-scale 0.18s ease;
+  user-select: none;
+}
+@keyframes lb-scale {
+  from { opacity: 0; transform: scale(0.93); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.img-lightbox-close {
+  position: fixed;
+  top: 16px; right: 16px;
+  width: 36px; height: 36px;
+  background: rgba(255, 255, 255, 0.14);
+  border: none;
+  border-radius: 50%;
+  color: #fff;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--t);
+}
+.img-lightbox-close:hover { background: rgba(255, 255, 255, 0.26); }
 
 .system-message {
   align-self: center;

@@ -1,16 +1,16 @@
 from django.core.exceptions import ValidationError
+from django.db.models import Count, OuterRef, Subquery
 from django.shortcuts import render
-
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Room, RoomMembership
+from .models import Message, Room, RoomMembership
 from .serializers import DashboardRoomSerializer, MessageSerializer, RoomSerializer
 from .services import MediaService, MessageService, RoomService
-
 
 # ---------------------------------------------------------------------------
 # Legacy endpoints — kept for the old anonymous template at /chat/<room_name>/
@@ -178,18 +178,63 @@ class DashboardView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        memberships = (
-            RoomMembership.objects
-            .filter(user=request.user)
-            .select_related("room")
-            .order_by("-room__created_at")
-        )
-        rooms = [m.room for m in memberships]
+        memberships = list(RoomMembership.objects.filter(user=request.user))
         membership_map = {m.room_id: m for m in memberships}
+        if not membership_map:
+            return Response([])
+
+        room_ids = list(membership_map.keys())
+
+        latest_msg_sq = Subquery(
+            Message.objects
+            .filter(room_id=OuterRef("pk"))
+            .order_by("-timestamp")
+            .values("id")[:1]
+        )
+        rooms = list(
+            Room.objects
+            .filter(id__in=room_ids)
+            .annotate(
+                member_count_annotation=Count("memberships", distinct=True),
+                latest_message_id=latest_msg_sq,
+            )
+            .order_by("-created_at")
+        )
+
+        latest_ids = [r.latest_message_id for r in rooms if r.latest_message_id]
+        last_message_map = {
+            m.room_id: m
+            for m in (
+                Message.objects.select_related("sender").filter(id__in=latest_ids)
+                if latest_ids
+                else []
+            )
+        }
+
+        unread_data = dict(
+            Message.objects
+            .filter(
+                room_id__in=room_ids,
+                timestamp__gt=Subquery(
+                    RoomMembership.objects
+                    .filter(user_id=request.user.id, room_id=OuterRef("room_id"))
+                    .values("last_seen")[:1]
+                ),
+            )
+            .values("room_id")
+            .annotate(cnt=Count("id"))
+            .values_list("room_id", "cnt")
+        )
+
         serializer = DashboardRoomSerializer(
             rooms,
             many=True,
-            context={"request": request, "membership_map": membership_map},
+            context={
+                "request": request,
+                "membership_map": membership_map,
+                "last_message_map": last_message_map,
+                "unread_data": unread_data,
+            },
         )
         return Response(serializer.data)
 
@@ -204,13 +249,15 @@ class RoomDetailView(APIView):
                 {"error": "Room not found.", "code": "not_found"},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        if not RoomService.is_member(request.user, room):
+        try:
+            membership = RoomMembership.objects.get(user=request.user, room=room)
+        except RoomMembership.DoesNotExist:
             return Response(
                 {"error": "You are not a member of this room.", "code": "not_member"},
                 status=status.HTTP_403_FORBIDDEN,
             )
         RoomService.update_last_seen(request.user, room)
-        messages = MessageService.get_history(room)
+        messages = MessageService.get_history(room, since=membership.joined_at)
         return Response({
             "room":     RoomSerializer(room, context={"request": request}).data,
             "messages": MessageSerializer(messages, many=True, context={"request": request}).data,
@@ -258,9 +305,9 @@ class MarkRoomSeenView(APIView):
         room = RoomService.get_by_slug(slug)
         if room is None:
             return Response({"error": "Room not found.", "code": "not_found"}, status=status.HTTP_404_NOT_FOUND)
-        if not RoomService.is_member(request.user, room):
+        updated = RoomMembership.objects.filter(user=request.user, room=room).update(last_seen=timezone.now())
+        if not updated:
             return Response({"error": "You are not a member of this room.", "code": "not_member"}, status=status.HTTP_403_FORBIDDEN)
-        RoomService.update_last_seen(request.user, room)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

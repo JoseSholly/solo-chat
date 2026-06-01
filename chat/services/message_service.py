@@ -5,9 +5,11 @@ class MessageService:
     HISTORY_LIMIT = 50
 
     @staticmethod
-    def get_history(room: Room) -> list[Message]:
-        qs = room.messages.select_related("sender").order_by("-timestamp")[: MessageService.HISTORY_LIMIT]
-        return list(reversed(qs))
+    def get_history(room: Room, since=None) -> list[Message]:
+        qs = room.messages.select_related("sender").order_by("-timestamp")
+        if since is not None:
+            qs = qs.filter(timestamp__gte=since)
+        return list(reversed(qs[: MessageService.HISTORY_LIMIT]))
 
     @staticmethod
     def create_text(room: Room, username: str, content: str, sender=None) -> Message:

@@ -8,7 +8,6 @@ from rest_framework_simplejwt.tokens import AccessToken
 
 from .services import MessageService, RoomService
 
-
 # ---------------------------------------------------------------------------
 # Legacy consumer — anonymous, used by the old /chat/<room_name>/ template
 # ---------------------------------------------------------------------------
@@ -145,6 +144,7 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
                 self.group_name,
                 {
                     "type":         "chat_message",
+                    "id":           data.get("id", ""),
                     "message_type": message_type,
                     "username":     self.user.username,
                     "display_name": self.user.display_name,

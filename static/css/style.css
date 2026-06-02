@@ -496,13 +496,30 @@ textarea.form-input { resize: vertical; min-height: 80px; }
 
 .member-name {
   font-size: 13px; font-weight: 500; color: var(--text);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: center; gap: 4px; min-width: 0;
 }
-.member-item.offline .member-name { color: var(--text-secondary); }
+.member-name-text {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  min-width: 0; flex-shrink: 1;
+}
+.member-item.offline .member-name-text { color: var(--text-secondary); }
 
 .member-username {
   font-size: 11px; color: var(--text-muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.creator-tag {
+  display: inline-block;
+  font-size: 10px; font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid rgba(99,102,241,0.3);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin-left: 5px;
+  vertical-align: middle;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
 }
 
 /* Members toggle button — hidden on desktop */

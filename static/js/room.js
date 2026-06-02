@@ -829,13 +829,17 @@ class RoomPanel {
     const item = document.createElement('div');
     item.className = `member-item ${isOnline ? 'online' : 'offline'}`;
     item.dataset.username = m.username;
+    const isCreator = this.room.creator_username && m.username === this.room.creator_username;
     item.innerHTML = `
       <div class="member-avatar-wrap">
         <div class="member-av" style="background:${color}">${inner}</div>
         <span class="member-status-dot ${isOnline ? 'online' : 'offline'}"></span>
       </div>
       <div class="member-info">
-        <div class="member-name">${escHtml(m.display_name || m.username)}</div>
+        <div class="member-name">
+          <span class="member-name-text">${escHtml(m.display_name || m.username)}</span>
+          ${isCreator ? '<span class="creator-tag">Creator</span>' : ''}
+        </div>
         <div class="member-username">@${escHtml(m.username)}</div>
       </div>`;
 

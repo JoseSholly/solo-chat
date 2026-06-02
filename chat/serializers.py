@@ -4,12 +4,13 @@ from .models import Message, Room
 
 
 class RoomSerializer(serializers.ModelSerializer):
-    member_count = serializers.SerializerMethodField()
-    is_creator   = serializers.SerializerMethodField()
+    member_count     = serializers.SerializerMethodField()
+    is_creator       = serializers.SerializerMethodField()
+    creator_username = serializers.SerializerMethodField()
 
     class Meta:
         model  = Room
-        fields = ["id", "name", "description", "slug", "member_count", "is_creator", "created_at"]
+        fields = ["id", "name", "description", "slug", "member_count", "is_creator", "creator_username", "created_at"]
 
     def get_member_count(self, obj):
         return obj.memberships.count()
@@ -19,6 +20,9 @@ class RoomSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             return obj.creator_id == request.user.id
         return False
+
+    def get_creator_username(self, obj):
+        return obj.creator.username if obj.creator else None
 
 
 class MessageSerializer(serializers.ModelSerializer):

@@ -629,7 +629,7 @@ class RoomPanel {
       ${avatarHtml}
       <div class="msg-body">
         ${!isOwn ? `<div class="message-sender">${escHtml(data.display_name || data.username)}</div>` : ''}
-        <div class="message-bubble">${bubbleContent}</div>
+        <div class="message-bubble${data.message_type === 'image' ? ' media' : ''}">${bubbleContent}</div>
         <div class="message-time">${relativeTime(data.timestamp)}</div>
       </div>`;
 

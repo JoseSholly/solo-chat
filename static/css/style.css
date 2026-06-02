@@ -430,6 +430,9 @@ textarea.form-input { resize: vertical; min-height: 80px; }
 .message-bubble audio { display: block; width: 220px; margin: 2px 0; }
 .message-bubble img   { max-width: 240px; border-radius: var(--radius-xs); display: block; cursor: zoom-in; }
 
+.message-bubble.media { background: none; padding: 0; border-radius: var(--radius-sm); overflow: hidden; }
+.message-bubble.media img { max-width: 240px; border-radius: var(--radius-sm); }
+
 .message-time {
   font-size: 10px; color: var(--text-muted);
   margin-top: 3px; padding: 0 4px;
@@ -871,6 +874,7 @@ textarea.form-input { resize: vertical; min-height: 80px; }
   .message-row          { max-width: 90%; }
   .message-bubble audio { width: 180px; }
   .message-bubble img   { max-width: 200px; }
+  .message-bubble.media img { max-width: 200px; }
 
   /* Toast stretches full-width at bottom */
   .toast-container { left: 12px; right: 12px; bottom: 12px; }
@@ -900,6 +904,7 @@ textarea.form-input { resize: vertical; min-height: 80px; }
   .message-bubble       { font-size: 13px; padding: 8px 11px; }
   .message-bubble audio { width: 160px; }
   .message-bubble img   { max-width: 175px; }
+  .message-bubble.media img { max-width: 175px; }
 
   .modal-overlay { padding: 12px 8px; }
   .modal-body    { padding: 16px; }

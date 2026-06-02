@@ -94,6 +94,7 @@ class RoomPanel {
     this._reconnectTimer  = null;
     this._userScrolled    = false;
     this.onlineUsers      = new Set();
+    this._renderedIds     = new Set();
 
     this._markSeenTimer = null;
 
@@ -386,6 +387,8 @@ class RoomPanel {
     if (!res.ok) { showToast('Upload failed.', 'error'); return; }
     const msg = await res.json();
 
+    this._appendMessage(msg, true);
+
     if (this.wsReady) {
       this.ws.send(JSON.stringify({
         type:      'image',
@@ -393,6 +396,8 @@ class RoomPanel {
         file_url:  msg.file_url,
         timestamp: msg.timestamp,
       }));
+    } else {
+      showToast('Connection lost — others may not see this image.', 'error');
     }
   }
 
@@ -413,6 +418,8 @@ class RoomPanel {
     if (!res.ok) { showToast('Upload failed.', 'error'); return; }
     const msg = await res.json();
 
+    this._appendMessage(msg, true);
+
     if (this.wsReady) {
       this.ws.send(JSON.stringify({
         type:      'voice',
@@ -420,6 +427,8 @@ class RoomPanel {
         file_url:  msg.file_url,
         timestamp: msg.timestamp,
       }));
+    } else {
+      showToast('Connection lost — others may not see this voice note.', 'error');
     }
   }
 
@@ -569,6 +578,8 @@ class RoomPanel {
   // ── Render messages ───────────────────────────────────────────────────────
 
   _appendMessage(data, smooth) {
+    if (data.id && this._renderedIds.has(data.id)) return;
+    if (data.id) this._renderedIds.add(data.id);
     const user  = getUser();
     const isOwn = user && (String(data.sender_id) === String(user.id) || data.username === user.username);
     const wasAtBottom = this._isAtBottom();

@@ -1,10 +1,16 @@
 from django.core.exceptions import ValidationError
 
-IMAGE_MAX_BYTES = 10 * 1024 * 1024   # 10 MB
-VOICE_MAX_BYTES = 25 * 1024 * 1024   # 25 MB
+IMAGE_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
+VOICE_MAX_BYTES = 25 * 1024 * 1024  # 25 MB
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
-ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav", "audio/webm"}
+ALLOWED_AUDIO_TYPES = {
+    "audio/mpeg",
+    "audio/mp4",
+    "audio/ogg",
+    "audio/wav",
+    "audio/webm",
+}
 
 
 class MediaService:

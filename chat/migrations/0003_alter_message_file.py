@@ -5,7 +5,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("chat", "0002_message_sender_room_creator_room_description_and_more"),
     ]

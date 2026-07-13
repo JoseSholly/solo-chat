@@ -24,7 +24,9 @@ CSRF_COOKIE_SECURE = True
 # W008 is silenced because SSL redirect is intentionally delegated to Railway.
 SILENCED_SYSTEM_CHECKS = ["security.W008"]
 
-CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if o]
+CSRF_TRUSTED_ORIGINS = [
+    o for o in os.environ.get("CSRF_TRUSTED_ORIGINS", "").split(",") if o
+]
 
 # ─── Database ────────────────────────────────────────────────────────────────
 # Add these at the top of your settings.py
@@ -36,14 +38,14 @@ load_dotenv()
 tmpPostgres = urlparse(os.getenv("DATABASE_URL"))
 
 DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': tmpPostgres.path.replace('/', ''),
-        'USER': tmpPostgres.username,
-        'PASSWORD': tmpPostgres.password,
-        'HOST': tmpPostgres.hostname,
-        'PORT': 5432,
-        'OPTIONS': dict(parse_qsl(tmpPostgres.query)),
+    "default": {
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": tmpPostgres.path.replace("/", ""),
+        "USER": tmpPostgres.username,
+        "PASSWORD": tmpPostgres.password,
+        "HOST": tmpPostgres.hostname,
+        "PORT": 5432,
+        "OPTIONS": dict(parse_qsl(tmpPostgres.query)),
     }
 }
 
@@ -77,7 +79,7 @@ STORAGES = {
 # ─── Cloudinary ──────────────────────────────────────────────────────────────
 CLOUDINARY_STORAGE = {
     "CLOUD_NAME": os.environ["CLOUDINARY_CLOUD_NAME"],
-    "API_KEY":    os.environ["CLOUDINARY_API_KEY"],
+    "API_KEY": os.environ["CLOUDINARY_API_KEY"],
     "API_SECRET": os.environ["CLOUDINARY_API_SECRET"],
     "DEFAULT_FOLDER": "solo-chat",
 }

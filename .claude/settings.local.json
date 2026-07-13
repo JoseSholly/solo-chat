@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\HP\\\\Documents\\\\Git\\\\sitesupervise_backend\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\HP\\\\Documents\\\\Git\\\\sitesupervise_backend\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(xargs grep -l \"signals\\\\|receiver\")",
+      "Bash(xargs grep -l \"signals\\\\|post_save\\\\|pre_save\\\\|post_delete\")",
+      "Bash(xargs grep -l \"celery\\\\|@task\\\\|AsyncTask\")",
+      "Bash(xargs grep -l \"ready\\\\|from django.db.models.signals\")",
+      "Bash(xargs grep -l \"dispatcher\\\\|event\\\\|publisher\\\\|mediator\\\\|bus\")",
+      "Bash(python -c \"import ast, sys; [ast.parse\\(open\\(p\\).read\\(\\)\\) for p in ['chat/apps.py','chat/consumers.py','chat/views.py','chat/services/message_service.py','chat/services/room_service.py','chat/events/bus.py','chat/events/events.py','chat/events/handlers.py','chat/events/signals.py','chat/events/__init__.py','chat/repositories/room_dashboard_repository.py','chat/repositories/__init__.py']]; print\\('parse ok'\\)\")",
+      "Bash(python manage.py check)",
+      "Bash(python -c ' *)",
+      "Bash(python manage.py test chat --verbosity 2)",
+      "Bash(python -m pip list)",
+      "Bash(python -c \"import pytest, pytest_django, channels; print\\('pytest', pytest.__version__\\); print\\('pytest-django', pytest_django.__version__\\); print\\('channels', channels.__version__\\)\")",
+      "Bash(python -m pytest chat/tests -v)",
+      "Bash(python -m pytest chat/tests -q)"
+    ]
+  }
+}

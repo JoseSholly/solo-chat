@@ -6,7 +6,12 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .serializers import LoginSerializer, SignupSerializer, UserProfileSerializer, UserPublicProfileSerializer
+from .serializers import (
+    LoginSerializer,
+    SignupSerializer,
+    UserProfileSerializer,
+    UserPublicProfileSerializer,
+)
 
 
 def _token_response(user, request=None):
@@ -22,7 +27,9 @@ class SignupView(APIView):
     def post(self, request):
         serializer = SignupSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
+            )
         user = serializer.save()
         return Response(_token_response(user, request), status=status.HTTP_201_CREATED)
 
@@ -31,7 +38,9 @@ class LoginView(APIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if not serializer.is_valid():
-            return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
+            )
         return Response(_token_response(serializer.validated_data["user"], request))
 
 
@@ -60,14 +69,18 @@ class ProfileView(APIView):
     parser_classes = [MultiPartParser, JSONParser]
 
     def get(self, request):
-        return Response(UserProfileSerializer(request.user, context={"request": request}).data)
+        return Response(
+            UserProfileSerializer(request.user, context={"request": request}).data
+        )
 
     def patch(self, request):
         serializer = UserProfileSerializer(
             request.user, data=request.data, partial=True, context={"request": request}
         )
         if not serializer.is_valid():
-            return Response({"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": serializer.errors}, status=status.HTTP_400_BAD_REQUEST
+            )
         serializer.save()
         return Response(serializer.data)
 
@@ -77,8 +90,13 @@ class UserPublicProfileView(APIView):
 
     def get(self, request, username):
         from .models import User
+
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
-        return Response(UserPublicProfileSerializer(user, context={"request": request}).data)
+            return Response(
+                {"error": "User not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        return Response(
+            UserPublicProfileSerializer(user, context={"request": request}).data
+        )

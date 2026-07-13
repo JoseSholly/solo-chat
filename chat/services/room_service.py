@@ -1,5 +1,7 @@
+from django.db import transaction
 from django.utils import timezone
 
+from chat.events import LastSeenUpdated, RoomCreated, event_bus
 from chat.models import Room, RoomMembership
 
 
@@ -24,8 +26,16 @@ class RoomService:
 
     @staticmethod
     def create(user, name: str, description: str = "") -> Room:
-        room = Room.objects.create(name=name, description=description, creator=user)
-        RoomMembership.objects.create(user=user, room=room)
+        with transaction.atomic():
+            room = Room.objects.create(name=name, description=description, creator=user)
+            RoomMembership.objects.create(user=user, room=room)
+        event_bus.emit(
+            RoomCreated(
+                room_id=str(room.id),
+                creator_id=str(user.id),
+                name=name,
+            )
+        )
         return room
 
     @staticmethod
@@ -44,4 +54,12 @@ class RoomService:
 
     @staticmethod
     def update_last_seen(user, room: Room) -> None:
-        RoomMembership.objects.filter(user=user, room=room).update(last_seen=timezone.now())
+        now = timezone.now()
+        RoomMembership.objects.filter(user=user, room=room).update(last_seen=now)
+        event_bus.emit(
+            LastSeenUpdated(
+                room_id=str(room.id),
+                user_id=str(user.id),
+                timestamp=now.isoformat(),
+            )
+        )

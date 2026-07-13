@@ -41,7 +41,16 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "email", "username", "display_name", "avatar", "avatar_url", "bio", "date_joined"]
+        fields = [
+            "id",
+            "email",
+            "username",
+            "display_name",
+            "avatar",
+            "avatar_url",
+            "bio",
+            "date_joined",
+        ]
         read_only_fields = ["id", "email", "username", "date_joined"]
         extra_kwargs = {"avatar": {"write_only": True}}
 
@@ -56,7 +65,7 @@ class UserPublicProfileSerializer(serializers.ModelSerializer):
     avatar_url = serializers.SerializerMethodField()
 
     class Meta:
-        model  = User
+        model = User
         fields = ["username", "display_name", "avatar_url", "bio", "date_joined"]
 
     def get_avatar_url(self, obj):

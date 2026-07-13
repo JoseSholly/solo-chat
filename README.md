@@ -72,6 +72,10 @@ HTTP (REST):
                            DRF View       Admin
                                │
                            Service layer (RoomService / MessageService / MediaService)
+                               │           │
+                               │           └─── event_bus.emit(MessageCreated | RoomCreated | …)
+                               │
+                          Repository layer (RoomDashboardRepository)  ◀── DashboardView
                                │
                            SQLite (dev) / PostgreSQL (prod)
 
@@ -82,15 +86,21 @@ WebSocket:
                                     ├── JWT decode (query param)
                                     ├── Membership check (ORM)
                                     ├── group_add("room_{id}")
+                                    ├── emit UserJoinedRoom / UserLeftRoom
                                     │
-                                    ├── receive(text) ──▶ MessageService.create_text()
-                                    │                         │
-                                    └── channel_layer.group_send ──▶ Redis pub/sub
-                                                                           │
-                                                    ┌──────────────────────┘
-                                                    ▼
-                                         All consumers in "room_{id}" group
-                                         + "user_{id}" groups for unread badges
+                                    └── receive(text) ──▶ MessageService.create_text()
+                                                              │
+                                                              └── event_bus.emit(MessageCreated)
+                                                                    │
+                                                    ┌───────────────┴───────────────┐
+                                                    ▼                               ▼
+                                        broadcast_message_to_room       notify_other_members
+                                                    │                               │
+                                                    └── channel_layer.group_send ──▶ Redis pub/sub
+                                                                                    │
+                                                        ┌───────────────────────────┘
+                                                        ▼
+                                            "room_{id}"   +   "user_{id}"  groups
 ```
 
 ### ASGI protocol routing
@@ -123,19 +133,45 @@ MessageService   — get_history(limit=50) / create_text / create_media
 MediaService     — validate(file, type)  — MIME type + file size enforcement
 ```
 
-Both DRF views and WebSocket consumers call the same service methods, so there is no duplicated logic between the two request paths.
+Both DRF views and WebSocket consumers call the same service methods, so there is no duplicated logic between the two request paths. Services also **emit domain events** rather than calling into the WebSocket layer directly — see below.
+
+### Repository layer
+
+Repositories live in `chat/repositories/`. They are introduced only when at least one of these holds: the query is complex, multiple services share the same data-access logic, persistence details deserve isolation, or the persistence mechanism is expected to evolve. Simple CRUD stays on the ORM inside the services — the ORM is already an excellent abstraction.
+
+Today there is exactly one:
+
+```
+RoomDashboardRepository.get_user_dashboard(user) -> DashboardData
+```
+
+It encapsulates the three-subquery aggregate that powers the dashboard (latest message per room, member count, unread count) and returns a `DashboardData` dataclass so the view is just a thin call site.
+
+### Event architecture
+
+`chat/events/` is a lightweight, in-process event system used to decouple side effects (WebSocket broadcasts, notifications, `last_seen` bookkeeping) from the code that triggers them. It's a **hybrid** of two mechanisms:
+
+- **Custom event bus** — services and consumers explicitly emit domain events with rich, primitive-only payloads. Handlers subscribe in `AppConfig.ready()`. Dispatch is synchronous and in-process; handler exceptions are logged and swallowed so one broken handler cannot fail a message write. Payloads carry IDs (not model instances), so a future move to an async broker is a swap of the dispatcher, not the payloads.
+- **Django signals** — reserved for guarantees that must fire no matter how a model changes. One receiver today: `post_save(Message)` advances the sender's `RoomMembership.last_seen`, so sending a message can never leave you unread to yourself.
+
+Events currently defined:
+
+| Event | Emitted from | Handlers |
+|---|---|---|
+| `MessageCreated` | `MessageService.create_text` / `create_media` | `broadcast_message_to_room`, `notify_other_members_of_message` |
+| `RoomCreated` | `RoomService.create` | *(none yet — reserved for audit / welcome logic)* |
+| `UserJoinedRoom` / `UserLeftRoom` | `RoomChatConsumer.connect` / `disconnect` | `broadcast_presence` |
+| `LastSeenUpdated` | `RoomService.update_last_seen` | *(none yet — reserved for read-receipt propagation)* |
+
+Because `MessageService` emits `MessageCreated`, **any** code path that creates a message — WebSocket text, REST media upload, admin, a future scheduled bot — automatically triggers the same broadcast and unread fanout. The consumer no longer owns transport-adjacent logic.
 
 ### Unread count design
 
-`RoomMembership.last_seen` is updated to `timezone.now()` every time a user opens a room (`GET /api/rooms/<slug>/`). The dashboard serializer computes:
+`RoomMembership.last_seen` is updated to `timezone.now()` in two places: when a user opens a room (`GET /api/rooms/<slug>/` → `RoomService.update_last_seen`), and automatically for the sender of every new message via the `post_save(Message)` signal receiver.
 
-```python
-unread_count = messages.filter(timestamp__gt=membership.last_seen).count()
-```
+The dashboard endpoint delegates to `RoomDashboardRepository.get_user_dashboard(user)`, which resolves memberships, latest-message-per-room, member counts, and unread counts in **three queries total** (a subquery-annotated room fetch, a batched last-message fetch, and a subquery-based unread aggregation) — not N+1.
 
-A pre-built `membership_map` is passed through serializer context, so the dashboard endpoint resolves all rooms with **one query per user**, not N+1.
-
-When a member sends a message, `RoomChatConsumer` fans out an `unread_update` event to every other member's `user_{id}` channel group. The `NotificationConsumer` relays it to their browser, which increments the sidebar badge — no polling required.
+When a member sends a message, the `MessageCreated` event fans out to two handlers: one broadcasts the message to the room group, the other pushes an `unread_update` to every other member's `user_{id}` channel group. The `NotificationConsumer` relays those to browsers, which increment the sidebar badge — no polling required.
 
 ### Frontend architecture
 
@@ -223,11 +259,28 @@ solo-chat/
 │   ├── consumers.py          # RoomChatConsumer · NotificationConsumer · ChatConsumer (legacy)
 │   ├── routing.py            # WebSocket URL patterns
 │   ├── urls.py               # /api/* REST endpoints
-│   └── services/
-│       ├── __init__.py       # Re-exports RoomService · MessageService · MediaService
-│       ├── room_service.py
-│       ├── message_service.py
-│       └── media_service.py
+│   ├── apps.py               # AppConfig.ready() wires event handlers + signal receivers
+│   ├── services/
+│   │   ├── __init__.py       # Re-exports RoomService · MessageService · MediaService
+│   │   ├── room_service.py
+│   │   ├── message_service.py
+│   │   └── media_service.py
+│   ├── repositories/
+│   │   ├── __init__.py
+│   │   └── room_dashboard_repository.py   # Complex dashboard aggregate
+│   ├── events/
+│   │   ├── __init__.py       # Re-exports event_bus and event dataclasses
+│   │   ├── bus.py            # EventBus (subscribe / emit)
+│   │   ├── events.py         # Frozen dataclass events (primitive IDs only)
+│   │   ├── handlers.py       # broadcast_message_to_room · notify_other_members · broadcast_presence
+│   │   └── signals.py        # post_save(Message) → advance sender's last_seen
+│   └── tests/                # pytest suite — see "Running tests" below
+│       ├── conftest.py       # Fixtures + in-memory channel layer override
+│       ├── test_events_bus.py
+│       ├── test_events_signals.py
+│       ├── test_events_handlers.py
+│       ├── test_repositories.py
+│       └── test_services.py
 │
 ├── templates/
 │   ├── accounts/
@@ -339,6 +392,31 @@ export DJANGO_SETTINGS_MODULE=config.settings.local
 
 ---
 
+## Running tests
+
+The suite is **pytest + pytest-django** and lives in `chat/tests/`. Redis is not required — a conftest fixture swaps the channel layer for `channels.layers.InMemoryChannelLayer` during tests.
+
+```bash
+python -m pytest chat/tests
+python -m pytest chat/tests -v                       # verbose
+python -m pytest chat/tests/test_repositories.py     # one file
+python -m pytest -k "unread"                         # filter by name
+```
+
+What's covered:
+
+| File | Scope |
+|---|---|
+| `test_events_bus.py` | `EventBus` — subscribe / emit, per-type isolation, exception swallowing, one bad handler not blocking others |
+| `test_events_signals.py` | `post_save(Message)` advances the sender's `last_seen`; no-op without a sender; no-op on update |
+| `test_events_handlers.py` | `broadcast_message_to_room` payload shape (text and media), sender-exclusion in `notify_other_members`, join vs leave in `broadcast_presence` |
+| `test_repositories.py` | `RoomDashboardRepository.get_user_dashboard` — no rooms, room with no messages, unread counting, no unread when caught up, multi-room mixed state |
+| `test_services.py` | Services emit the correct events with correct payloads; `RoomService.create` rolls back the room when membership creation fails; media-type validation |
+
+Pytest config lives in `pyproject.toml` under `[tool.pytest.ini_options]`.
+
+---
+
 ## Typical First-Run Flow
 
 1. Open `/signup/` and create an account — you land on `/dashboard/`
@@ -406,13 +484,12 @@ Authorization: Bearer <access_token>
 **Send** (client → server):
 
 ```jsonc
-// Text message
+// Text message — the consumer calls MessageService.create_text,
+// which emits MessageCreated. Handlers broadcast + push unread updates.
 { "type": "text", "content": "Hello!" }
-
-// Pre-uploaded media (after POST /api/rooms/<slug>/upload/)
-{ "type": "image", "file_url": "/media/uploads/...", "timestamp": "..." }
-{ "type": "voice", "file_url": "/media/uploads/...", "timestamp": "..." }
 ```
+
+Image and voice messages are sent purely via `POST /api/rooms/<slug>/upload/`. That REST call runs through `MessageService.create_media`, which emits `MessageCreated` — the broadcast handler fans it out to the room and the notify handler pushes unread updates. No client-initiated WebSocket frame is required (any that arrive are ignored).
 
 **Receive** (server → all clients in room):
 
@@ -467,7 +544,11 @@ Receive-only. Emits `unread_update` events when another member posts in a shared
 
 **Service layer between views and consumers** — `RoomService`, `MessageService`, and `MediaService` contain all business logic. Both DRF views and WebSocket consumers call into these services, so there is no logic duplication between the two request paths.
 
-**N+1 prevention on the dashboard** — `DashboardRoomSerializer` receives a pre-built `{room_id: membership}` map in its context. All rooms are resolved with a single membership query instead of one per room.
+**Domain events for side effects, Django signals for guarantees** — Business events like `MessageCreated` and `UserJoinedRoom` are dispatched through a small in-house `EventBus`, not through Django signals, because domain events benefit from being explicit and traceable in the code that emits them. Django signals are reserved for framework-level guarantees that must fire no matter how a model changes — currently one receiver, `post_save(Message)` advancing sender `last_seen`. Handlers are synchronous and in-process; payloads carry only primitive IDs, so moving to a background broker is a swap of the dispatcher rather than a rewrite of the events.
+
+**Repositories only where the ORM strains** — Django's ORM is already a strong data-access abstraction, so wrapping every model in a repository would be pure ceremony. A repository is introduced only when the query is complex, shared across services, needs isolation from persistence details, or is expected to evolve. Today `RoomDashboardRepository.get_user_dashboard` is the only one; the rest of the codebase talks to the ORM through services.
+
+**N+1 prevention on the dashboard** — `RoomDashboardRepository.get_user_dashboard` resolves memberships, latest message per room, member counts, and unread counts in a fixed, small number of queries via subquery annotations. The view no longer assembles context maps by hand.
 
 **Argon2 as the primary password hasher** — Django ships Argon2 support but does not enable it by default. It is explicitly set as the first entry in `PASSWORD_HASHERS` for better brute-force resistance on commodity hardware.
 

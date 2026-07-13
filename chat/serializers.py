@@ -4,13 +4,22 @@ from .models import Message, Room
 
 
 class RoomSerializer(serializers.ModelSerializer):
-    member_count     = serializers.SerializerMethodField()
-    is_creator       = serializers.SerializerMethodField()
+    member_count = serializers.SerializerMethodField()
+    is_creator = serializers.SerializerMethodField()
     creator_username = serializers.SerializerMethodField()
 
     class Meta:
-        model  = Room
-        fields = ["id", "name", "description", "slug", "member_count", "is_creator", "creator_username", "created_at"]
+        model = Room
+        fields = [
+            "id",
+            "name",
+            "description",
+            "slug",
+            "member_count",
+            "is_creator",
+            "creator_username",
+            "created_at",
+        ]
 
     def get_member_count(self, obj):
         return obj.memberships.count()
@@ -26,18 +35,34 @@ class RoomSerializer(serializers.ModelSerializer):
 
 
 class MessageSerializer(serializers.ModelSerializer):
-    file_url     = serializers.SerializerMethodField()
+    file_url = serializers.SerializerMethodField()
     display_name = serializers.SerializerMethodField()
-    sender_id    = serializers.SerializerMethodField()
-    avatar_url   = serializers.SerializerMethodField()
+    sender_id = serializers.SerializerMethodField()
+    avatar_url = serializers.SerializerMethodField()
 
     class Meta:
-        model  = Message
+        model = Message
         fields = [
-            "id", "room", "username", "display_name", "sender_id", "avatar_url",
-            "message_type", "content", "file", "file_url", "timestamp",
+            "id",
+            "room",
+            "username",
+            "display_name",
+            "sender_id",
+            "avatar_url",
+            "message_type",
+            "content",
+            "file",
+            "file_url",
+            "timestamp",
         ]
-        read_only_fields = ["id", "timestamp", "file_url", "display_name", "sender_id", "avatar_url"]
+        read_only_fields = [
+            "id",
+            "timestamp",
+            "file_url",
+            "display_name",
+            "sender_id",
+            "avatar_url",
+        ]
 
     def get_file_url(self, obj):
         request = self.context.get("request")
@@ -54,22 +79,31 @@ class MessageSerializer(serializers.ModelSerializer):
     def get_avatar_url(self, obj):
         if obj.sender and obj.sender.avatar:
             request = self.context.get("request")
-            return request.build_absolute_uri(obj.sender.avatar.url) if request else obj.sender.avatar.url
+            return (
+                request.build_absolute_uri(obj.sender.avatar.url)
+                if request
+                else obj.sender.avatar.url
+            )
         return None
 
 
 class DashboardRoomSerializer(serializers.ModelSerializer):
     member_count = serializers.SerializerMethodField()
-    is_creator   = serializers.SerializerMethodField()
+    is_creator = serializers.SerializerMethodField()
     last_message = serializers.SerializerMethodField()
     unread_count = serializers.SerializerMethodField()
 
     class Meta:
-        model  = Room
+        model = Room
         fields = [
-            "id", "name", "description", "slug",
-            "member_count", "is_creator",
-            "last_message", "unread_count",
+            "id",
+            "name",
+            "description",
+            "slug",
+            "member_count",
+            "is_creator",
+            "last_message",
+            "unread_count",
             "created_at",
         ]
 
@@ -90,8 +124,8 @@ class DashboardRoomSerializer(serializers.ModelSerializer):
         return {
             "display_name": last.sender.display_name if last.sender else last.username,
             "message_type": last.message_type,
-            "content":      last.content if last.message_type == "text" else None,
-            "timestamp":    last.timestamp.isoformat(),
+            "content": last.content if last.message_type == "text" else None,
+            "timestamp": last.timestamp.isoformat(),
         }
 
     def get_unread_count(self, obj):

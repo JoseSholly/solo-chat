@@ -17,6 +17,7 @@ dependencies = [
     "djangorestframework-simplejwt>=5.5.1",
     "pillow>=12.2.0",
     "psycopg2-binary>=2.9.12",
+    "pytest-django>=4.12.0",
     "python-decouple>=3.8",
     "python-dotenv>=1.2.2",
     "whitenoise>=6.12.0",
@@ -26,3 +27,8 @@ dependencies = [
 dev = [
     "ruff>=0.15.14",
 ]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.dev"
+python_files = ["test_*.py", "tests.py"]
+addopts = "-ra"

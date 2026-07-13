@@ -1,5 +1,4 @@
 from django.core.exceptions import ValidationError
-from django.db.models import Count, OuterRef, Subquery
 from django.shortcuts import render
 from django.utils import timezone
 from rest_framework import status
@@ -8,13 +7,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Message, Room, RoomMembership
+from .models import Room, RoomMembership
+from .repositories import RoomDashboardRepository
 from .serializers import DashboardRoomSerializer, MessageSerializer, RoomSerializer
 from .services import MediaService, MessageService, RoomService
 
 # ---------------------------------------------------------------------------
 # Legacy endpoints — kept for the old anonymous template at /chat/<room_name>/
 # ---------------------------------------------------------------------------
+
 
 class RoomGetOrCreateView(APIView):
     def get(self, request, room_name):
@@ -28,7 +29,9 @@ class MessageHistoryView(APIView):
         if room is None:
             return Response([], status=status.HTTP_200_OK)
         messages = MessageService.get_history(room)
-        return Response(MessageSerializer(messages, many=True, context={"request": request}).data)
+        return Response(
+            MessageSerializer(messages, many=True, context={"request": request}).data
+        )
 
 
 class MediaUploadView(APIView):
@@ -37,23 +40,37 @@ class MediaUploadView(APIView):
     def post(self, request, room_name):
         room = RoomService.get(room_name)
         if room is None:
-            return Response({"error": "Room not found.", "code": "not_found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Room not found.", "code": "not_found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
-        file         = request.FILES.get("file")
-        username     = request.data.get("username", "Anonymous")
+        file = request.FILES.get("file")
+        username = request.data.get("username", "Anonymous")
         message_type = request.data.get("message_type", "image")
 
         if not file:
-            return Response({"error": "No file provided.", "code": "missing_file"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "No file provided.", "code": "missing_file"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             MediaService.validate(file, message_type)
         except ValidationError as exc:
-            return Response({"error": exc.message, "code": "invalid_file"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": exc.message, "code": "invalid_file"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         sender = request.user if request.user.is_authenticated else None
-        message = MessageService.create_media(room, username, message_type, file, sender=sender)
-        return Response(MessageSerializer(message, context={"request": request}).data, status=status.HTTP_201_CREATED)
+        message = MessageService.create_media(
+            room, username, message_type, file, sender=sender
+        )
+        return Response(
+            MessageSerializer(message, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 def chat_room_view(request, room_name):
@@ -65,11 +82,12 @@ def chat_room_view(request, room_name):
 # Authenticated room management endpoints
 # ---------------------------------------------------------------------------
 
+
 class RoomCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        name        = request.data.get("name", "").strip()
+        name = request.data.get("name", "").strip()
         description = request.data.get("description", "").strip()
 
         if not name:
@@ -79,17 +97,26 @@ class RoomCreateView(APIView):
             )
         if len(name) > 100:
             return Response(
-                {"error": "Room name must be 100 characters or fewer.", "code": "name_too_long"},
+                {
+                    "error": "Room name must be 100 characters or fewer.",
+                    "code": "name_too_long",
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if Room.objects.filter(name=name).exists():
             return Response(
-                {"error": "A room with this name already exists.", "code": "name_taken"},
+                {
+                    "error": "A room with this name already exists.",
+                    "code": "name_taken",
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         room = RoomService.create(request.user, name, description)
-        return Response(RoomSerializer(room, context={"request": request}).data, status=status.HTTP_201_CREATED)
+        return Response(
+            RoomSerializer(room, context={"request": request}).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class RoomUpdateView(APIView):
@@ -98,24 +125,45 @@ class RoomUpdateView(APIView):
     def patch(self, request, slug):
         room = RoomService.get_by_slug(slug)
         if room is None:
-            return Response({"error": "Room not found.", "code": "not_found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Room not found.", "code": "not_found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         if room.creator_id != request.user.id:
             return Response(
-                {"error": "Only the room creator can edit this room.", "code": "forbidden"},
+                {
+                    "error": "Only the room creator can edit this room.",
+                    "code": "forbidden",
+                },
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        name        = request.data.get("name", "").strip()
+        name = request.data.get("name", "").strip()
         description = request.data.get("description", room.description).strip()
 
         if not name:
-            return Response({"error": "Room name is required.", "code": "missing_name"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"error": "Room name is required.", "code": "missing_name"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if len(name) > 100:
-            return Response({"error": "Room name must be 100 characters or fewer.", "code": "name_too_long"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {
+                    "error": "Room name must be 100 characters or fewer.",
+                    "code": "name_too_long",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         if Room.objects.filter(name=name).exclude(pk=room.pk).exists():
-            return Response({"error": "A room with this name already exists.", "code": "name_taken"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {
+                    "error": "A room with this name already exists.",
+                    "code": "name_taken",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        room.name        = name
+        room.name = name
         room.description = description
         room.save(update_fields=["name", "description"])
         return Response(RoomSerializer(room, context={"request": request}).data)
@@ -127,10 +175,16 @@ class RoomDeleteView(APIView):
     def delete(self, request, slug):
         room = RoomService.get_by_slug(slug)
         if room is None:
-            return Response({"error": "Room not found.", "code": "not_found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Room not found.", "code": "not_found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         if room.creator_id != request.user.id:
             return Response(
-                {"error": "Only the room creator can delete this room.", "code": "forbidden"},
+                {
+                    "error": "Only the room creator can delete this room.",
+                    "code": "forbidden",
+                },
                 status=status.HTTP_403_FORBIDDEN,
             )
         room.delete()
@@ -143,7 +197,10 @@ class RoomLeaveView(APIView):
     def post(self, request, slug):
         room = RoomService.get_by_slug(slug)
         if room is None:
-            return Response({"error": "Room not found.", "code": "not_found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Room not found.", "code": "not_found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         if not RoomService.is_member(request.user, room):
             return Response(
                 {"error": "You are not a member of this room.", "code": "not_member"},
@@ -151,7 +208,10 @@ class RoomLeaveView(APIView):
             )
         if room.creator_id == request.user.id:
             return Response(
-                {"error": "Room creator cannot leave. Delete the room instead.", "code": "creator_cannot_leave"},
+                {
+                    "error": "Room creator cannot leave. Delete the room instead.",
+                    "code": "creator_cannot_leave",
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         RoomService.remove_member(request.user, room)
@@ -162,6 +222,7 @@ class RoomLeaveView(APIView):
 # Invite / join flow
 # ---------------------------------------------------------------------------
 
+
 class InviteResolveView(APIView):
     def get(self, request, slug):
         room = RoomService.get_by_slug(slug)
@@ -171,11 +232,11 @@ class InviteResolveView(APIView):
                 status=status.HTTP_404_NOT_FOUND,
             )
         data = {
-            "id":           str(room.id),
-            "name":         room.name,
-            "description":  room.description,
+            "id": str(room.id),
+            "name": room.name,
+            "description": room.description,
             "member_count": room.memberships.count(),
-            "slug":         str(room.slug),
+            "slug": str(room.slug),
         }
         if request.user.is_authenticated:
             data["is_member"] = RoomService.is_member(request.user, room)
@@ -203,66 +264,23 @@ class JoinRoomView(APIView):
 # Dashboard and room detail
 # ---------------------------------------------------------------------------
 
+
 class DashboardView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        memberships = list(RoomMembership.objects.filter(user=request.user))
-        membership_map = {m.room_id: m for m in memberships}
-        if not membership_map:
+        data = RoomDashboardRepository.get_user_dashboard(request.user)
+        if not data.rooms:
             return Response([])
 
-        room_ids = list(membership_map.keys())
-
-        latest_msg_sq = Subquery(
-            Message.objects
-            .filter(room_id=OuterRef("pk"))
-            .order_by("-timestamp")
-            .values("id")[:1]
-        )
-        rooms = list(
-            Room.objects
-            .filter(id__in=room_ids)
-            .annotate(
-                member_count_annotation=Count("memberships", distinct=True),
-                latest_message_id=latest_msg_sq,
-            )
-            .order_by("-created_at")
-        )
-
-        latest_ids = [r.latest_message_id for r in rooms if r.latest_message_id]
-        last_message_map = {
-            m.room_id: m
-            for m in (
-                Message.objects.select_related("sender").filter(id__in=latest_ids)
-                if latest_ids
-                else []
-            )
-        }
-
-        unread_data = dict(
-            Message.objects
-            .filter(
-                room_id__in=room_ids,
-                timestamp__gt=Subquery(
-                    RoomMembership.objects
-                    .filter(user_id=request.user.id, room_id=OuterRef("room_id"))
-                    .values("last_seen")[:1]
-                ),
-            )
-            .values("room_id")
-            .annotate(cnt=Count("id"))
-            .values_list("room_id", "cnt")
-        )
-
         serializer = DashboardRoomSerializer(
-            rooms,
+            data.rooms,
             many=True,
             context={
                 "request": request,
-                "membership_map": membership_map,
-                "last_message_map": last_message_map,
-                "unread_data": unread_data,
+                "membership_map": data.membership_map,
+                "last_message_map": data.last_message_map,
+                "unread_data": data.unread_data,
             },
         )
         return Response(serializer.data)
@@ -287,10 +305,14 @@ class RoomDetailView(APIView):
             )
         RoomService.update_last_seen(request.user, room)
         messages = MessageService.get_history(room, since=membership.joined_at)
-        return Response({
-            "room":     RoomSerializer(room, context={"request": request}).data,
-            "messages": MessageSerializer(messages, many=True, context={"request": request}).data,
-        })
+        return Response(
+            {
+                "room": RoomSerializer(room, context={"request": request}).data,
+                "messages": MessageSerializer(
+                    messages, many=True, context={"request": request}
+                ).data,
+            }
+        )
 
 
 class RoomMembersView(APIView):
@@ -299,16 +321,19 @@ class RoomMembersView(APIView):
     def get(self, request, slug):
         room = RoomService.get_by_slug(slug)
         if room is None:
-            return Response({"error": "Room not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"error": "Room not found."}, status=status.HTTP_404_NOT_FOUND
+            )
         if not RoomService.is_member(request.user, room):
-            return Response({"error": "Not a member."}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"error": "Not a member."}, status=status.HTTP_403_FORBIDDEN
+            )
 
-        limit  = min(int(request.query_params.get("limit", 20)), 50)
+        limit = min(int(request.query_params.get("limit", 20)), 50)
         offset = int(request.query_params.get("offset", 0))
 
         qs = (
-            RoomMembership.objects
-            .filter(room=room)
+            RoomMembership.objects.filter(room=room)
             .select_related("user")
             .order_by("user__display_name", "user__username")
         )
@@ -318,13 +343,19 @@ class RoomMembersView(APIView):
         members = []
         for m in batch:
             u = m.user
-            members.append({
-                "username":     u.username,
-                "display_name": u.display_name or u.username,
-                "avatar_url":   request.build_absolute_uri(u.avatar.url) if u.avatar else None,
-            })
+            members.append(
+                {
+                    "username": u.username,
+                    "display_name": u.display_name or u.username,
+                    "avatar_url": request.build_absolute_uri(u.avatar.url)
+                    if u.avatar
+                    else None,
+                }
+            )
 
-        return Response({"members": members, "total": total, "has_more": offset + limit < total})
+        return Response(
+            {"members": members, "total": total, "has_more": offset + limit < total}
+        )
 
 
 class MarkRoomSeenView(APIView):
@@ -333,10 +364,18 @@ class MarkRoomSeenView(APIView):
     def patch(self, request, slug):
         room = RoomService.get_by_slug(slug)
         if room is None:
-            return Response({"error": "Room not found.", "code": "not_found"}, status=status.HTTP_404_NOT_FOUND)
-        updated = RoomMembership.objects.filter(user=request.user, room=room).update(last_seen=timezone.now())
+            return Response(
+                {"error": "Room not found.", "code": "not_found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        updated = RoomMembership.objects.filter(user=request.user, room=room).update(
+            last_seen=timezone.now()
+        )
         if not updated:
-            return Response({"error": "You are not a member of this room.", "code": "not_member"}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"error": "You are not a member of this room.", "code": "not_member"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -357,7 +396,7 @@ class AuthenticatedMediaUploadView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        file         = request.FILES.get("file")
+        file = request.FILES.get("file")
         message_type = request.data.get("message_type", "voice")
 
         if not file:

@@ -4,7 +4,6 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
-
 INSTALLED_APPS = [
     "daphne",  # must be first — enables ASGI runserver
     "jazzmin",
@@ -52,7 +51,9 @@ WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
 AUTH_PASSWORD_VALIDATORS = [
-    {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
+    {
+        "NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"
+    },
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
@@ -101,47 +102,41 @@ REST_FRAMEWORK = {
 
 JAZZMIN_SETTINGS = {
     # ── Branding ──────────────────────────────────────────────────────────
-    "site_title":        "ChatRooms Admin",
-    "site_header":       "ChatRooms",
-    "site_brand":        "ChatRooms",
+    "site_title": "ChatRooms Admin",
+    "site_header": "ChatRooms",
+    "site_brand": "ChatRooms",
     "site_logo_classes": "img-circle",
-    "welcome_sign":      "Welcome to ChatRooms Admin",
-    "copyright":         "ChatRooms",
-
+    "welcome_sign": "Welcome to ChatRooms Admin",
+    "copyright": "ChatRooms",
     # ── Top-bar search ────────────────────────────────────────────────────
     "search_model": ["accounts.User", "chat.Room"],
-
     # ── User avatar ───────────────────────────────────────────────────────
     "user_avatar": None,
-
     # ── Top menu links ────────────────────────────────────────────────────
     "topmenu_links": [
         {"name": "Home", "url": "admin:index", "permissions": ["auth.view_user"]},
-        {"name": "Site", "url": "/",           "new_window": True},
+        {"name": "Site", "url": "/", "new_window": True},
     ],
-
     # ── Sidebar custom links ──────────────────────────────────────────────
     "usermenu_links": [
         {"name": "View Site", "url": "/", "new_window": True, "icon": "fas fa-globe"},
     ],
-
     # ── Sidebar icons (Font Awesome 5) ────────────────────────────────────
     "icons": {
-        "accounts":                            "fas fa-users-cog",
-        "accounts.User":                       "fas fa-user-circle",
-        "auth":                                "fas fa-shield-alt",
-        "auth.Group":                          "fas fa-layer-group",
-        "chat":                                "fas fa-comments",
-        "chat.Room":                           "fas fa-hashtag",
-        "chat.Message":                        "fas fa-comment-dots",
-        "chat.RoomMembership":                 "fas fa-door-open",
-        "token_blacklist":                     "fas fa-lock",
-        "token_blacklist.BlacklistedToken":    "fas fa-ban",
-        "token_blacklist.OutstandingToken":    "fas fa-key",
+        "accounts": "fas fa-users-cog",
+        "accounts.User": "fas fa-user-circle",
+        "auth": "fas fa-shield-alt",
+        "auth.Group": "fas fa-layer-group",
+        "chat": "fas fa-comments",
+        "chat.Room": "fas fa-hashtag",
+        "chat.Message": "fas fa-comment-dots",
+        "chat.RoomMembership": "fas fa-door-open",
+        "token_blacklist": "fas fa-lock",
+        "token_blacklist.BlacklistedToken": "fas fa-ban",
+        "token_blacklist.OutstandingToken": "fas fa-key",
     },
     "default_icon_parents": "fas fa-chevron-circle-right",
     "default_icon_children": "fas fa-circle",
-
     # ── Sidebar app/model ordering ────────────────────────────────────────
     "order_with_respect_to": [
         "accounts",
@@ -149,57 +144,50 @@ JAZZMIN_SETTINGS = {
         "auth",
         "token_blacklist",
     ],
-
     # ── Hide clutter ──────────────────────────────────────────────────────
-    "hide_apps":   [],
+    "hide_apps": [],
     "hide_models": [],
-
     # ── UI ────────────────────────────────────────────────────────────────
-    "show_ui_builder":      False,
-    "changeform_format":    "horizontal_tabs",
-    "language_chooser":     False,
+    "show_ui_builder": False,
+    "changeform_format": "horizontal_tabs",
+    "language_chooser": False,
     "related_modal_active": True,
-    "default_theme_mode":   "light",
+    "default_theme_mode": "light",
 }
 
 JAZZMIN_UI_TWEAKS = {
     # ── Text sizes ────────────────────────────────────────────────────────
-    "navbar_small_text":         False,
-    "footer_small_text":         False,
-    "body_small_text":           False,
-    "brand_small_text":          False,
-
+    "navbar_small_text": False,
+    "footer_small_text": False,
+    "body_small_text": False,
+    "brand_small_text": False,
     # ── Colours ───────────────────────────────────────────────────────────
-    "brand_colour":              "navbar-primary",
-    "accent":                    "accent-primary",
-    "navbar":                    "navbar-dark navbar-navy",
-    "navbar_fixed":              True,
-    "no_navbar_border":          True,
-
+    "brand_colour": "navbar-primary",
+    "accent": "accent-primary",
+    "navbar": "navbar-dark navbar-navy",
+    "navbar_fixed": True,
+    "no_navbar_border": True,
     # ── Sidebar ───────────────────────────────────────────────────────────
-    "sidebar":                   "sidebar-dark-primary",
-    "sidebar_fixed":             True,
-    "sidebar_nav_small_text":    False,
-    "sidebar_disable_expand":    False,
-    "sidebar_nav_child_indent":  True,
+    "sidebar": "sidebar-dark-primary",
+    "sidebar_fixed": True,
+    "sidebar_nav_small_text": False,
+    "sidebar_disable_expand": False,
+    "sidebar_nav_child_indent": True,
     "sidebar_nav_compact_style": False,
-    "sidebar_nav_legacy_style":  False,
-    "sidebar_nav_flat_style":    False,
-
+    "sidebar_nav_legacy_style": False,
+    "sidebar_nav_flat_style": False,
     # ── Layout ────────────────────────────────────────────────────────────
-    "layout_boxed":  False,
-    "footer_fixed":  False,
-
+    "layout_boxed": False,
+    "footer_fixed": False,
     # ── Theme — light content area, dark sidebar (matches screenshot) ─────
     "theme": "default",
-
     # ── Buttons ───────────────────────────────────────────────────────────
     "button_classes": {
-        "primary":   "btn-primary",
+        "primary": "btn-primary",
         "secondary": "btn-outline-secondary",
-        "info":      "btn-info",
-        "warning":   "btn-warning",
-        "danger":    "btn-danger",
-        "success":   "btn-success",
+        "info": "btn-info",
+        "warning": "btn-warning",
+        "danger": "btn-danger",
+        "success": "btn-success",
     },
 }

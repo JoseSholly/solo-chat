@@ -2,19 +2,11 @@
 
 > Real-time group chat with invite links, voice notes, and live presence — built on Django Channels and JWT auth, no frontend framework.
 
-![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)
-![Django](https://img.shields.io/badge/Django-5.2-092E20?style=flat&logo=django&logoColor=white)
-![Django Channels](https://img.shields.io/badge/Channels-4.3-red?style=flat)
-![Redis](https://img.shields.io/badge/Redis-channel%20layer-DC382D?style=flat&logo=redis&logoColor=white)
-![License](https://img.shields.io/badge/license-MIT-green?style=flat)
-
 ---
 
 ## What it does
 
 ChatRooms lets users create private rooms, share invite links, and chat in real time — with text, images, and voice notes. It was built to demonstrate a complete full-stack WebSocket architecture without hiding behind a frontend framework or a hosted real-time service.
-
-**Think Slack meets WhatsApp:** named rooms, one-click invite links, unread badges, and presence indicators — all from a single Django codebase with ~2 000 lines of vanilla JS.
 
 ---
 
@@ -101,18 +93,6 @@ WebSocket:
                                                         ┌───────────────────────────┘
                                                         ▼
                                             "room_{id}"   +   "user_{id}"  groups
-```
-
-### ASGI protocol routing
-
-```python
-# config/asgi.py  (simplified)
-ProtocolTypeRouter({
-    "http":      get_asgi_application(),
-    "websocket": AllowedHostsOriginValidator(
-                     URLRouter(websocket_urlpatterns)
-                 ),
-})
 ```
 
 ### WebSocket consumers
@@ -403,28 +383,7 @@ python -m pytest chat/tests/test_repositories.py     # one file
 python -m pytest -k "unread"                         # filter by name
 ```
 
-What's covered:
-
-| File | Scope |
-|---|---|
-| `test_events_bus.py` | `EventBus` — subscribe / emit, per-type isolation, exception swallowing, one bad handler not blocking others |
-| `test_events_signals.py` | `post_save(Message)` advances the sender's `last_seen`; no-op without a sender; no-op on update |
-| `test_events_handlers.py` | `broadcast_message_to_room` payload shape (text and media), sender-exclusion in `notify_other_members`, join vs leave in `broadcast_presence` |
-| `test_repositories.py` | `RoomDashboardRepository.get_user_dashboard` — no rooms, room with no messages, unread counting, no unread when caught up, multi-room mixed state |
-| `test_services.py` | Services emit the correct events with correct payloads; `RoomService.create` rolls back the room when membership creation fails; media-type validation |
-
 Pytest config lives in `pyproject.toml` under `[tool.pytest.ini_options]`.
-
----
-
-## Typical First-Run Flow
-
-1. Open `/signup/` and create an account — you land on `/dashboard/`
-2. Click **New Room**, give it a name, and create it
-3. Inside the room, click **Copy Invite Link**
-4. Open that link in a second browser (or private window), sign in as a different user
-5. The second user sees the join confirmation and enters the room
-6. Both sessions are now live — messages and presence events appear in real time
 
 ---
 
@@ -540,16 +499,6 @@ Receive-only. Emits `unread_update` events when another member posts in a shared
 
 **JWT passed as a WebSocket query parameter** — The WebSocket protocol does not support custom headers from browsers. Passing `?token=<access_token>` in the connection URL is the standard workaround. The token is short-lived (1 day) to limit exposure.
 
-**Dual consumers for backward compatibility** — The original `ChatConsumer` (anonymous, room-name-based) is kept alongside the new `RoomChatConsumer` (JWT-authenticated, slug-based). Legacy `/chat/<room_name>/` pages continue to work without migration.
-
-**Service layer between views and consumers** — `RoomService`, `MessageService`, and `MediaService` contain all business logic. Both DRF views and WebSocket consumers call into these services, so there is no logic duplication between the two request paths.
-
-**Domain events for side effects, Django signals for guarantees** — Business events like `MessageCreated` and `UserJoinedRoom` are dispatched through a small in-house `EventBus`, not through Django signals, because domain events benefit from being explicit and traceable in the code that emits them. Django signals are reserved for framework-level guarantees that must fire no matter how a model changes — currently one receiver, `post_save(Message)` advancing sender `last_seen`. Handlers are synchronous and in-process; payloads carry only primitive IDs, so moving to a background broker is a swap of the dispatcher rather than a rewrite of the events.
-
-**Repositories only where the ORM strains** — Django's ORM is already a strong data-access abstraction, so wrapping every model in a repository would be pure ceremony. A repository is introduced only when the query is complex, shared across services, needs isolation from persistence details, or is expected to evolve. Today `RoomDashboardRepository.get_user_dashboard` is the only one; the rest of the codebase talks to the ORM through services.
-
-**N+1 prevention on the dashboard** — `RoomDashboardRepository.get_user_dashboard` resolves memberships, latest message per room, member counts, and unread counts in a fixed, small number of queries via subquery annotations. The view no longer assembles context maps by hand.
-
 **Argon2 as the primary password hasher** — Django ships Argon2 support but does not enable it by default. It is explicitly set as the first entry in `PASSWORD_HASHERS` for better brute-force resistance on commodity hardware.
 
 ---
@@ -579,11 +528,7 @@ Set these wherever you deploy:
 | `REDIS_URL` | `redis://host:6379` | Used for the Channels layer |
 | `DJANGO_SETTINGS_MODULE` | `config.settings.prod` | Must be set explicitly in production |
 
-### Remaining production considerations
 
-- [ ] Configure object storage (S3 or equivalent) for user-uploaded media — `MEDIA_ROOT` on the local filesystem is not persistent across container restarts
-- [ ] Reduce `ACCESS_TOKEN_LIFETIME` to 15–30 minutes (currently 1 day)
-- [ ] Set up log aggregation — Daphne writes to stdout, which container runtimes capture by default
 
 ---
 

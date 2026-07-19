@@ -19,3 +19,5 @@ config/settings/local.py
 db.sqlite3
 media/
 staticfiles/
+
+ROADMAP.md

@@ -13,3 +13,31 @@
     });
   }
 </script>
+<script>
+  // Chrome's "Desktop site" setting ignores the viewport tag and lays the
+  // page out ~980px wide on a phone, which no CSS can undo. Detect it and
+  // tell the user how to switch it off.
+  window.addEventListener('DOMContentLoaded', function () {
+    var phone = navigator.maxTouchPoints > 0 && screen.width <= 820;
+    if (!phone || window.innerWidth < screen.width * 1.3) return;
+    try { if (sessionStorage.getItem('desktop-notice-dismissed')) return; } catch (e) {}
+
+    var k = window.innerWidth / screen.width; // undo the zoom-out
+    var bar = document.createElement('div');
+    bar.setAttribute('role', 'status');
+    bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;display:flex;align-items:center;gap:' + 12 * k + 'px;' +
+      'padding:' + 14 * k + 'px ' + 16 * k + 'px;background:#8fe0ae;color:#0a0a0b;font:500 ' + 15 * k + 'px/1.4 system-ui,sans-serif;';
+    bar.innerHTML = '<span style="flex:1">Chrome is showing the desktop version. Tap <b>&#8942;</b> and untick <b>Desktop site</b> for the mobile view.</span>';
+    var close = document.createElement('button');
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Dismiss');
+    close.textContent = '×';
+    close.style.cssText = 'border:0;background:none;color:inherit;cursor:pointer;font-size:' + 26 * k + 'px;line-height:1;padding:0 ' + 4 * k + 'px;';
+    close.onclick = function () {
+      bar.remove();
+      try { sessionStorage.setItem('desktop-notice-dismissed', '1'); } catch (e) {}
+    };
+    bar.appendChild(close);
+    document.body.appendChild(bar);
+  });
+</script>

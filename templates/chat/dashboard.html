@@ -4,111 +4,109 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-  <title>Dashboard — ChatRooms</title>
+  <meta name="theme-color" content="#0a0a0b">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%230a0a0b%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%276%27 fill=%27%238fe0ae%27/%3E%3C/svg%3E">
+  <title>Solo-Chat</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
 
-  <!-- Navbar -->
-  <nav class="navbar">
-    <a class="navbar-brand" href="/dashboard/">
-      <div class="navbar-brand-icon">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-        </svg>
-      </div>
-      <span class="navbar-brand-name">ChatRooms</span>
-    </a>
+  <div class="app" id="app">
 
-    <div class="navbar-spacer"></div>
-
-    <div class="user-menu">
-      <button class="user-menu-trigger" id="user-menu-trigger">
-        <div class="user-avatar" id="nav-user-avatar"></div>
-        <span class="user-display-name" id="nav-user-name"></span>
-        <span class="chevron">▾</span>
-      </button>
-      <div class="dropdown-menu" id="user-dropdown">
-        <button class="dropdown-item" id="btn-profile">Profile</button>
-        <div class="dropdown-divider"></div>
-        <button class="dropdown-item danger" id="btn-logout">Log out</button>
-      </div>
-    </div>
-  </nav>
-
-  <!-- App layout -->
-  <div class="app-layout">
-
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <span class="sidebar-title">Rooms</span>
-        <button class="sidebar-new-btn" id="btn-new-room">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="3" stroke-linecap="round">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          New Room
+    <!-- Rooms -->
+    <aside class="sidebar" id="sidebar" aria-label="Rooms">
+      <div class="sidebar-head">
+        <a class="wordmark" href="/dashboard/">
+          <span class="wordmark-mark" id="notif-mark" data-state="offline"></span>Solo-Chat
+        </a>
+        <button class="icon-btn" id="btn-new-room" type="button" aria-label="New room" title="New room">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+               stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         </button>
       </div>
-      <div class="room-list" id="room-list"></div>
+
+      <div class="sidebar-label"><span>Rooms</span><span class="mono" id="room-count"></span></div>
+      <nav class="room-list" id="room-list" aria-label="Your rooms"></nav>
+
+      <div class="sidebar-foot">
+        <button class="user-chip" id="user-menu-trigger" type="button">
+          <span id="nav-user-avatar"></span>
+          <span class="user-chip-text">
+            <span class="user-chip-name truncate" id="nav-user-name"></span>
+            <span class="user-chip-handle truncate" id="nav-user-handle"></span>
+          </span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 9.5L12 6l3.5 3.5M8.5 14.5L12 18l3.5-3.5"/></svg>
+        </button>
+        <div class="menu" id="user-dropdown" role="menu" aria-label="Account">
+          <a class="menu-item" role="menuitem" href="/profile/">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8.5" r="3.75"/><path d="M5 19.5c1.4-3 4-4.5 7-4.5s5.6 1.5 7 4.5"/></svg>
+            Profile
+          </a>
+          <div class="menu-sep" role="separator"></div>
+          <button class="menu-item is-danger" role="menuitem" id="btn-logout" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 19.5H6.5a2 2 0 0 1-2-2v-11a2 2 0 0 1 2-2h3M15.5 16l4-4-4-4M19.5 12H10"/></svg>
+            Log out
+          </button>
+        </div>
+      </div>
     </aside>
 
-    <!-- Main panel -->
-    <main class="main-panel" id="main-panel">
-      <div class="empty-state">
-        <div class="empty-state-icon">💬</div>
-        <div class="empty-state-title">No room selected</div>
-        <div class="empty-state-body">
-          Pick a room from the sidebar or create a new one to start chatting.
-        </div>
-        <button class="btn btn-primary" id="btn-new-room-empty">New Room</button>
-      </div>
-    </main>
+    <div class="nav-scrim" id="nav-scrim"></div>
+
+    <!-- Conversation -->
+    <main class="stage" id="main-panel"></main>
 
   </div>
 
-  <!-- New Room modal -->
+  <!-- New room -->
   <div class="modal-overlay" id="modal-overlay">
-    <div class="modal">
-      <div class="modal-header">
-        <span class="modal-title">Create a new room</span>
-        <button class="modal-close" id="modal-close" aria-label="Close">&#x2715;</button>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="new-room-title">
+      <div class="modal-head">
+        <div>
+          <h2 class="modal-title" id="new-room-title">New room</h2>
+          <p class="modal-desc">Rooms are private. You'll get an invite link to share.</p>
+        </div>
+        <button class="icon-btn modal-close" id="modal-close" type="button" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+               stroke-linecap="round" aria-hidden="true"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg>
+        </button>
       </div>
-      <form id="new-room-form">
+      <form id="new-room-form" novalidate>
         <div class="modal-body">
-          <div id="modal-error" class="form-error"></div>
-
-          <div class="form-group">
-            <label class="form-label" for="room-name-input">Room Name</label>
-            <input class="form-input" type="text" id="room-name-input"
-                   placeholder="e.g. design-team" maxlength="100" required>
+          <div id="modal-error" class="form-error" role="alert"></div>
+          <div class="field">
+            <label class="field-label" for="room-name-input">Name</label>
+            <input class="input" type="text" id="room-name-input" placeholder="e.g. weekend-plans"
+                   maxlength="100" autocomplete="off" required>
           </div>
-
-          <div class="form-group">
-            <label class="form-label" for="room-desc-input">Description <span style="color:var(--text-muted)">(optional)</span></label>
-            <textarea class="form-input" id="room-desc-input"
-                      placeholder="What's this room for?" rows="2"></textarea>
+          <div class="field">
+            <label class="field-label" for="room-desc-input">Description <span class="field-hint">Optional</span></label>
+            <textarea class="input" id="room-desc-input" rows="2" placeholder="What's this room for?"></textarea>
           </div>
         </div>
-        <div class="modal-footer">
+        <div class="modal-foot">
           <button type="button" class="btn btn-ghost" id="modal-cancel">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="modal-submit">Create Room</button>
+          <button type="submit" class="btn btn-primary" id="modal-submit">Create room</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Toast container -->
   <div class="toast-container" id="toast-container"></div>
 
   <script src="{% static 'js/api.js' %}"></script>
   <script src="{% static 'js/auth-guard.js' %}"></script>
   <script src="{% static 'js/auth.js' %}"></script>
+  <script src="{% static 'js/ui.js' %}"></script>
   <script src="{% static 'js/dashboard.js' %}"></script>
+  <script src="{% static 'js/messages.js' %}"></script>
+  <script src="{% static 'js/composer.js' %}"></script>
   <script src="{% static 'js/room.js' %}"></script>
 </body>
 </html>

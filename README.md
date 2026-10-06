@@ -21,10 +21,10 @@ ChatRooms lets users create private rooms, share invite links, and chat in real 
 | **Membership** | Rooms are private — join via invite only; creator cannot leave their own room |
 | **Real-time Chat** | WebSocket connection per room via Django Channels + Redis channel layer |
 | **Media Messages** | Upload images (≤ 10 MB) or voice notes (≤ 25 MB); MIME-validated before storage |
-| **Presence Tracking** | `join` / `leave` system messages when members connect or disconnect |
+| **Presence Tracking** | Live "who's here" in every room: `join` / `leave` events, plus a `here` roll call so newcomers see who was already connected |
 | **Unread Counts** | Per-room unread badge on the dashboard, driven by `RoomMembership.last_seen` |
 | **Live Badge Updates** | A per-user notification WebSocket pushes badge increments without polling |
-| **Dark UI** | Single CSS file, Inter font, indigo accent — no frameworks, no bundlers |
+| **Dark UI** | One token-based stylesheet (Instrument Sans + IBM Plex Mono, single accent), vanilla JS components, in-browser voice recording, real upload progress — no frameworks, no bundlers |
 
 ---
 

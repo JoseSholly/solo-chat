@@ -3,86 +3,83 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sign Up — ChatRooms</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0a0b">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%278%27 fill=%27%230a0a0b%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%276%27 fill=%27%238fe0ae%27/%3E%3C/svg%3E">
+  <title>Create an account — Solo-Chat</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Instrument+Sans:wght@400..700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
-  <div class="auth-page">
-    <div class="auth-card">
-
-      <div class="auth-brand">
-        <div class="auth-brand-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-          </svg>
-        </div>
-        <span class="auth-brand-name">ChatRooms</span>
+  <div class="auth">
+    <main class="auth-main">
+      <div class="auth-top">
+        <a class="wordmark" href="/"><span class="wordmark-mark"></span>Solo-Chat</a>
+        <p class="auth-top-link">Have an account? <a class="link" id="alt-link" href="/login/">Sign in</a></p>
       </div>
 
-      <h1 class="auth-heading">Create an account</h1>
-      <p class="auth-subheading">Join and start chatting in rooms</p>
+      <div class="auth-body">
+        <h1 class="auth-title">Create your account.</h1>
+        <p class="auth-sub">Then start a room, or join one you were invited to.</p>
 
-      <form class="auth-form" id="signup-form" novalidate>
-        <div id="form-error" class="form-error"></div>
+        <form class="auth-form" id="signup-form" novalidate>
+          <div id="form-error" class="form-error" role="alert"></div>
 
-        <div class="form-group">
-          <label class="form-label" for="display-name">Display Name</label>
-          <input class="form-input" type="text" id="display-name"
-                 placeholder="Your name" autocomplete="name" required>
-          <span class="field-error" id="err-display-name"></span>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="username">Username</label>
-          <input class="form-input" type="text" id="username"
-                 placeholder="letters, numbers, underscores" autocomplete="username" required>
-          <span class="field-error" id="err-username"></span>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="email">Email</label>
-          <input class="form-input" type="email" id="email"
-                 placeholder="you@example.com" autocomplete="email" required>
-          <span class="field-error" id="err-email"></span>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="password">Password</label>
-          <div style="position:relative;">
-            <input class="form-input" type="password" id="password"
-                   placeholder="at least 8 characters" autocomplete="new-password" required
-                   style="padding-right:42px;">
-            <button type="button" id="toggle-password"
-                    aria-label="Toggle password visibility"
-                    style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:4px;color:var(--text-muted);display:flex;align-items:center;">
-              <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18"
-                   viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                <circle cx="12" cy="12" r="3"/>
-              </svg>
-            </button>
+          <div class="field">
+            <label class="field-label" for="display-name">Name</label>
+            <input class="input" type="text" id="display-name" autocomplete="name" maxlength="100"
+                   aria-describedby="err-display-name" required autofocus>
+            <span class="field-error" id="err-display-name"></span>
           </div>
-          <span class="field-error" id="err-password"></span>
-        </div>
 
-        <button class="btn btn-primary btn-full" type="submit" id="submit-btn">
-          Create account
-        </button>
-      </form>
+          <div class="field">
+            <label class="field-label" for="username">Username <span class="field-hint">Letters, numbers and _</span></label>
+            <input class="input mono" type="text" id="username" autocomplete="username" maxlength="50"
+                   autocapitalize="none" spellcheck="false" aria-describedby="err-username" required>
+            <span class="field-error" id="err-username"></span>
+          </div>
 
-      <p class="auth-footer">Already have an account? <a href="/login/">Log in</a></p>
-    </div>
+          <div class="field">
+            <label class="field-label" for="email">Email</label>
+            <input class="input" type="email" id="email" autocomplete="email" aria-describedby="err-email" required>
+            <span class="field-error" id="err-email"></span>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="password">Password <span class="field-hint">At least 8 characters</span></label>
+            <div class="input-wrap">
+              <input class="input" type="password" id="password" autocomplete="new-password"
+                     aria-describedby="err-password" required>
+              <button type="button" class="icon-btn input-affix" id="toggle-password"
+                      aria-label="Show password" aria-pressed="false"></button>
+            </div>
+            <span class="field-error" id="err-password"></span>
+          </div>
+
+          <button class="btn btn-primary btn-lg btn-full" type="submit" id="submit-btn">Create account</button>
+        </form>
+      </div>
+    </main>
+
+    <aside class="auth-aside" aria-hidden="true">
+      <p class="auth-aside-line">Private rooms.</p>
+      <p class="auth-aside-line">Real conversations.</p>
+      <p class="auth-aside-line is-live">Live.<span class="live-dot is-breathing"></span></p>
+      <p class="auth-aside-foot">Create a room, share its link, and talk in text, images and voice notes.</p>
+    </aside>
   </div>
 
   <script src="{% static 'js/api.js' %}"></script>
   <script src="{% static 'js/auth.js' %}"></script>
+  <script src="{% static 'js/ui.js' %}"></script>
   <script>
-    if (localStorage.getItem('cr_access')) window.location.replace('/dashboard/');
+    const next = new URLSearchParams(window.location.search).get('next');
+    const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard/';
+
+    if (localStorage.getItem('cr_access')) window.location.replace(safeNext);
+    if (next) document.getElementById('alt-link').href = '/login/?next=' + encodeURIComponent(next);
 
     const FIELD_MAP = {
       display_name: 'display-name',
@@ -91,65 +88,82 @@
       password:     'password',
     };
 
-    function clearErrors() {
-      document.getElementById('form-error').classList.remove('visible');
-      Object.values(FIELD_MAP).forEach(id => {
-        document.getElementById('err-' + id).textContent = '';
-        document.getElementById(id).classList.remove('error');
-      });
+    const toggle = document.getElementById('toggle-password');
+    const pw     = document.getElementById('password');
+    toggle.innerHTML = icon('eye', 18);
+    toggle.addEventListener('click', () => {
+      const show = pw.type === 'password';
+      pw.type = show ? 'text' : 'password';
+      toggle.innerHTML = icon(show ? 'eyeOff' : 'eye', 18);
+      toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      toggle.setAttribute('aria-pressed', String(show));
+    });
+
+    function setFieldError(domId, msg) {
+      document.getElementById('err-' + domId).textContent = msg || '';
+      const input = document.getElementById(domId);
+      if (msg) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid');
     }
 
-    function showFieldErrors(errors) {
+    function clearErrors() {
+      document.getElementById('form-error').classList.remove('is-visible');
+      Object.values(FIELD_MAP).forEach(id => setFieldError(id, ''));
+    }
+
+    Object.values(FIELD_MAP).forEach((id) =>
+      document.getElementById(id).addEventListener('input', () => setFieldError(id, '')));
+
+    // Catch the obvious things before a round trip
+    function validate(v) {
+      const errs = {};
+      if (!v.displayName) errs['display-name'] = 'Tell people what to call you.';
+      if (!v.username) errs.username = 'Pick a username.';
+      else if (!/^[A-Za-z0-9_]+$/.test(v.username)) errs.username = 'Use only letters, numbers and underscores.';
+      if (!v.email) errs.email = 'Enter your email.';
+      else if (!/^\S+@\S+\.\S+$/.test(v.email)) errs.email = 'That doesn\'t look like an email address.';
+      if (v.password.length < 8) errs.password = 'Use at least 8 characters.';
+      return errs;
+    }
+
+    function showServerErrors(errors) {
       let handled = false;
       for (const [field, domId] of Object.entries(FIELD_MAP)) {
         if (errors[field]) {
-          const msg = Array.isArray(errors[field]) ? errors[field][0] : errors[field];
-          document.getElementById('err-' + domId).textContent = msg;
-          document.getElementById(domId).classList.add('error');
+          setFieldError(domId, Array.isArray(errors[field]) ? errors[field][0] : errors[field]);
           handled = true;
         }
       }
       if (!handled) {
-        const gen = errors.non_field_errors?.[0] || JSON.stringify(errors);
-        const el  = document.getElementById('form-error');
-        el.textContent = gen;
-        el.classList.add('visible');
+        const el = document.getElementById('form-error');
+        el.textContent = errors.non_field_errors?.[0] || 'Something went wrong. Please try again.';
+        el.classList.add('is-visible');
       }
     }
-
-    document.getElementById('toggle-password').addEventListener('click', () => {
-      const input = document.getElementById('password');
-      const icon  = document.getElementById('eye-icon');
-      const show  = input.type === 'password';
-      input.type  = show ? 'text' : 'password';
-      icon.innerHTML = show
-        ? `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
-           <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
-           <line x1="1" y1="1" x2="23" y2="23"/>`
-        : `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-           <circle cx="12" cy="12" r="3"/>`;
-    });
 
     document.getElementById('signup-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       clearErrors();
 
+      const values = {
+        displayName: document.getElementById('display-name').value.trim(),
+        username:    document.getElementById('username').value.trim(),
+        email:       document.getElementById('email').value.trim(),
+        password:    pw.value,
+      };
+      const errs = validate(values);
+      const ids = Object.keys(errs);
+      if (ids.length) {
+        ids.forEach(id => setFieldError(id, errs[id]));
+        document.getElementById(ids[0]).focus();
+        return;
+      }
+
       const btn = document.getElementById('submit-btn');
       btn.disabled = true;
       btn.textContent = 'Creating account…';
 
-      const result = await authSignup({
-        displayName: document.getElementById('display-name').value.trim(),
-        username:    document.getElementById('username').value.trim(),
-        email:       document.getElementById('email').value.trim(),
-        password:    document.getElementById('password').value,
-      });
-
-      if (result.ok) {
-        const next = new URLSearchParams(window.location.search).get('next') || '/dashboard/';
-        window.location.href = next;
-        return;
-      }
+      const result = await authSignup(values);
+      if (result.ok) { window.location.href = safeNext; return; }
 
       btn.disabled = false;
       btn.textContent = 'Create account';
@@ -157,9 +171,10 @@
       if (typeof result.errors === 'string') {
         const el = document.getElementById('form-error');
         el.textContent = result.errors;
-        el.classList.add('visible');
+        el.classList.add('is-visible');
       } else {
-        showFieldErrors(result.errors || {});
+        showServerErrors(result.errors || {});
+        document.querySelector('.input[aria-invalid="true"]')?.focus();
       }
     });
   </script>

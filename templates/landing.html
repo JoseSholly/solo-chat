@@ -30,9 +30,9 @@
     <div class="site-inner hero">
       <p class="kicker"><span class="live-dot is-breathing"></span>Real-time group messaging</p>
       <h1 class="hero-title" id="hero-title">
-        <span>Private rooms.</span>
-        <span class="is-dim">Real conversations.</span>
-        <span class="hero-live">Live.<span class="live-dot" aria-hidden="true"></span></span>
+        <span class="hero-line"><span>Private rooms.</span></span>
+        <span class="hero-line"><span class="is-dim">Real conversations.</span></span>
+        <span class="hero-line"><span>Live.<span class="signal-dot" aria-hidden="true"><span class="live-dot"></span></span></span></span>
       </h1>
       <div class="hero-foot">
         <p class="hero-sub">Create private rooms, invite people, and communicate instantly with text, images, and voice.</p>
@@ -51,28 +51,28 @@
   <section class="site-section showcase" aria-label="What a room looks like">
     <div class="site-inner reveal">
       <div class="showcase-frame" id="showcase" role="img"
-           aria-label="A Solo-Chat room called studio: Maya arrives, sends a message and a voice note, while a new message lands in another room.">
+           aria-label="A Solo-Chat room called studio: Maya arrives and sends a voice note, a message lands in another room, you reply, switch rooms and record a voice note.">
 
         <aside class="sidebar">
           <div class="sidebar-head"><span class="wordmark"><span class="wordmark-mark"></span>Solo-Chat</span></div>
           <div class="sidebar-label"><span>Rooms</span><span class="mono">3</span></div>
           <div class="room-list">
             <span class="room-indicator is-visible"></span>
-            <div class="room-item is-active">
+            <div class="room-item is-active" data-room="studio">
               <span class="monogram" style="--tone:hsl(152 11% 19%);--tone-ink:hsl(152 22% 78%)">S</span>
               <span class="room-item-body">
-                <span class="room-item-row"><span class="room-name">studio</span><time class="room-time">now</time></span>
-                <span class="room-item-row"><span class="room-preview" id="demo-preview">You: Almost — Maya's exporting.</span></span>
+                <span class="room-item-row"><span class="room-name">studio</span><time class="room-time">10:03</time></span>
+                <span class="room-item-row"><span class="room-preview" data-preview>You: Almost — Maya's exporting.</span></span>
               </span>
             </div>
-            <div class="room-item" id="demo-other">
+            <div class="room-item" data-room="trip">
               <span class="monogram" style="--tone:hsl(28 11% 19%);--tone-ink:hsl(28 22% 78%)">W</span>
               <span class="room-item-body">
-                <span class="room-item-row"><span class="room-name">weekend-trip</span><time class="room-time" id="demo-other-time">9:12</time></span>
-                <span class="room-item-row"><span class="room-preview" id="demo-other-preview">Theo: Cabin's booked.</span></span>
+                <span class="room-item-row"><span class="room-name">weekend-trip</span><time class="room-time" data-time>9:12</time></span>
+                <span class="room-item-row"><span class="room-preview" data-preview>Theo: Cabin's booked.</span></span>
               </span>
             </div>
-            <div class="room-item">
+            <div class="room-item" data-room="family">
               <span class="monogram" style="--tone:hsl(222 11% 19%);--tone-ink:hsl(222 22% 78%)">F</span>
               <span class="room-item-body">
                 <span class="room-item-row"><span class="room-name">family</span><time class="room-time">Mon</time></span>
@@ -84,11 +84,11 @@
 
         <section class="room">
           <header class="room-head">
-            <div class="room-head-title">
-              <span class="room-title">studio</span>
+            <div class="room-head-title" id="demo-head">
+              <span class="room-title" id="demo-title">studio</span>
               <span class="room-sub">
                 <span class="conn" data-state="live"><span class="conn-dot"></span><span class="conn-label">Live</span></span>
-                <span class="room-sub-sep">·</span><span>4 members</span>
+                <span class="room-sub-sep">·</span><span id="demo-members">4 members</span>
               </span>
             </div>
             <span class="presence">
@@ -101,7 +101,9 @@
 
           <div class="timeline-wrap">
             <div class="timeline">
-              <div class="timeline-inner">
+
+              <!-- studio -->
+              <div class="timeline-inner is-current" data-scene="studio">
                 <div class="day-divider">Today</div>
 
                 <div class="msg-group is-other">
@@ -119,50 +121,103 @@
                   </div>
                 </div>
 
-                <div class="presence-event is-join" data-demo="1">
+                <div class="presence-event is-join" data-demo="join">
                   <span class="avatar avatar--xs" style="--tone:hsl(330 11% 19%);--tone-ink:hsl(330 22% 78%)">M</span>
                   <span><span class="presence-event-who">Maya</span> is here</span>
                   <span class="presence-event-dot"></span>
                   <time>10:04</time>
                 </div>
 
-                <div class="msg-group is-other" data-demo="2">
+                <div class="msg-group is-other" data-demo="maya-text">
                   <span class="msg-avatar"><span class="avatar avatar--md" style="--tone:hsl(330 11% 19%);--tone-ink:hsl(330 22% 78%)">M</span></span>
                   <div class="msg-stack">
                     <header class="msg-head"><span class="msg-author">Maya</span><time>10:04</time></header>
                     <div class="msg"><div class="msg-text">Export's done. Notes are easier to say than type:</div></div>
-                    <div class="msg" data-demo="3">
-                      <div class="voice" id="demo-voice">
+                    <div class="msg" data-demo="maya-voice">
+                      <div class="voice" id="demo-voice-maya" data-wave="1">
                         <span class="voice-play">
                           <svg class="i-play" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.6v12.8a.6.6 0 0 0 .9.5l10.3-6.4a.6.6 0 0 0 0-1L8.9 5.1a.6.6 0 0 0-.9.5z" fill="currentColor"/></svg>
                           <svg class="i-pause" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="5" width="3.75" height="14" rx="1" fill="currentColor"/><rect x="13.75" y="5" width="3.75" height="14" rx="1" fill="currentColor"/></svg>
                         </span>
-                        <span class="voice-wave"><span class="voice-bars" id="demo-bars"></span><span class="voice-bars is-fill" id="demo-bars-fill"></span></span>
-                        <span class="voice-time" id="demo-voice-time">0:18</span>
+                        <span class="voice-wave"><span class="voice-bars"></span><span class="voice-bars is-fill"></span></span>
+                        <span class="voice-time" data-total="18">0:18</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div class="msg-group is-own" data-demo="4">
+                <div class="msg-group is-own" data-demo="own-reply">
                   <div class="msg-stack">
                     <header class="msg-head"><time>10:05</time></header>
                     <div class="msg"><div class="msg-text">Listening now.</div></div>
                   </div>
                 </div>
               </div>
+
+              <!-- weekend-trip -->
+              <div class="timeline-inner" data-scene="trip">
+                <div class="day-divider">Today</div>
+
+                <div class="msg-group is-other">
+                  <span class="msg-avatar"><span class="avatar avatar--md" style="--tone:hsl(200 11% 19%);--tone-ink:hsl(200 22% 78%)">T</span></span>
+                  <div class="msg-stack">
+                    <header class="msg-head"><span class="msg-author">Theo</span><time>9:12</time></header>
+                    <div class="msg"><div class="msg-text">Cabin's booked for Friday and Saturday.</div></div>
+                  </div>
+                </div>
+
+                <div class="msg-group is-other" data-demo="trip-ines">
+                  <span class="msg-avatar"><span class="avatar avatar--md" style="--tone:hsl(48 11% 19%);--tone-ink:hsl(48 22% 78%)">I</span></span>
+                  <div class="msg-stack">
+                    <header class="msg-head"><span class="msg-author">Ines</span><time>10:05</time></header>
+                    <div class="msg"><div class="msg-text">Train gets in at 6. Can someone grab me from the station?</div></div>
+                  </div>
+                </div>
+
+                <div class="msg-group is-own" data-demo="own-voice">
+                  <div class="msg-stack">
+                    <header class="msg-head"><time>10:06</time></header>
+                    <div class="msg">
+                      <div class="voice" id="demo-voice-own" data-wave="4">
+                        <span class="voice-play">
+                          <svg class="i-play" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.6v12.8a.6.6 0 0 0 .9.5l10.3-6.4a.6.6 0 0 0 0-1L8.9 5.1a.6.6 0 0 0-.9.5z" fill="currentColor"/></svg>
+                          <svg class="i-pause" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="5" width="3.75" height="14" rx="1" fill="currentColor"/><rect x="13.75" y="5" width="3.75" height="14" rx="1" fill="currentColor"/></svg>
+                        </span>
+                        <span class="voice-wave"><span class="voice-bars"></span><span class="voice-bars is-fill"></span></span>
+                        <span class="voice-time" data-total="3">0:03</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
 
           <div class="composer-wrap">
-            <div class="composer">
+            <div class="composer" id="demo-composer">
               <div class="composer-row">
                 <span class="composer-btn">
                   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11.5l-8 8a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.4 8.4a1.7 1.7 0 0 1-2.4-2.4l7.7-7.7"/></svg>
                 </span>
-                <span class="composer-input" style="color:var(--text-3)">Message studio</span>
+                <span class="composer-input"><span class="demo-typed" id="demo-typed" data-placeholder="Message studio"></span></span>
+                <span class="composer-actions">
+                  <span class="composer-btn composer-mic">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
+                  </span>
+                  <span class="composer-btn composer-send" id="demo-send">
+                    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5.5M6.5 11L12 5.5 17.5 11"/></svg>
+                  </span>
+                </span>
+              </div>
+              <div class="composer-rec" id="demo-rec" hidden>
                 <span class="composer-btn">
-                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 7h15M10 11v5.5M14 11v5.5M6.5 7l.8 11.2a2 2 0 0 0 2 1.8h5.4a2 2 0 0 0 2-1.8L17.5 7M9.5 7V4.5h5V7"/></svg>
+                </span>
+                <span class="rec-status"><span class="rec-dot"></span><span class="rec-time" id="demo-rec-time">0:00</span></span>
+                <span class="rec-levels" id="demo-levels"></span>
+                <span class="composer-btn rec-send">
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5.5M6.5 11L12 5.5 17.5 11"/></svg>
                 </span>
               </div>
             </div>
@@ -183,25 +238,27 @@
         <h2 class="section-title" id="principles-title">Made for small groups<br>who talk often.</h2>
         <span class="kicker">What you get</span>
       </div>
-      <div class="principle reveal">
-        <span class="principle-n">01</span>
-        <h3 class="principle-title">Rooms are private.</h3>
-        <p class="principle-body">Every room is invite-only. Share its link with the people you want in; nobody else can find it or read along.</p>
-      </div>
-      <div class="principle reveal">
-        <span class="principle-n">02</span>
-        <h3 class="principle-title">Everything arrives live.</h3>
-        <p class="principle-body">Messages, presence and unread counts travel over WebSockets, so a room updates the moment someone speaks. No refreshing.</p>
-      </div>
-      <div class="principle reveal">
-        <span class="principle-n">03</span>
-        <h3 class="principle-title">Say it however it fits.</h3>
-        <p class="principle-body">Type it, drop in a photo, or tap the mic and record a voice note. It all lives in the same conversation.</p>
-      </div>
-      <div class="principle reveal">
-        <span class="principle-n">04</span>
-        <h3 class="principle-title">You can tell who's here.</h3>
-        <p class="principle-body">Presence is part of the room. You see people arrive and leave, and who's around before you start talking.</p>
+      <div class="principle-list">
+        <div class="principle reveal">
+          <span class="principle-n">01</span>
+          <h3 class="principle-title">Rooms are private.</h3>
+          <p class="principle-body">Every room is invite-only. Share its link with the people you want in; nobody else can find it or read along.</p>
+        </div>
+        <div class="principle reveal">
+          <span class="principle-n">02</span>
+          <h3 class="principle-title">Everything arrives live.</h3>
+          <p class="principle-body">Messages, presence and unread counts travel over WebSockets, so a room updates the moment someone speaks. No refreshing.</p>
+        </div>
+        <div class="principle reveal">
+          <span class="principle-n">03</span>
+          <h3 class="principle-title">Say it however it fits.</h3>
+          <p class="principle-body">Type it, drop in a photo, or tap the mic and record a voice note. It all lives in the same conversation.</p>
+        </div>
+        <div class="principle reveal">
+          <span class="principle-n">04</span>
+          <h3 class="principle-title">You can tell who's here.</h3>
+          <p class="principle-body">Presence is part of the room. You see people arrive and leave, and who's around before you start talking.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -236,7 +293,7 @@
   <!-- Closing -->
   <section class="site-section closing" aria-labelledby="closing-title">
     <div class="site-inner closing-inner reveal">
-      <h2 class="closing-title" id="closing-title">Start a room.</h2>
+      <h2 class="closing-title" id="closing-title">Start a room.<span class="signal-dot" aria-hidden="true"><span class="live-dot"></span></span></h2>
       <div class="hero-ctas" id="closing-ctas">
         <a href="/signup/" class="btn btn-primary btn-lg">Create account</a>
         <a href="/login/" class="btn btn-ghost btn-lg">Sign in</a>
@@ -269,7 +326,8 @@
     window.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
 
-    // Gentle reveal as sections enter
+    // ── Scroll reveals (steps draw their progress line in order) ──────────
+    document.querySelectorAll('.step').forEach((s, i) => s.style.setProperty('--d', `${i * 260}ms`));
     const reveals = document.querySelectorAll('.reveal');
     if (reduced || !('IntersectionObserver' in window)) {
       reveals.forEach(el => el.classList.add('is-in'));
@@ -280,82 +338,222 @@
           e.target.classList.add('is-in');
           io.unobserve(e.target);
         });
-      }, { threshold: 0.12 });
+      }, { threshold: 0.15 });
       reveals.forEach(el => io.observe(el));
     }
 
-    // Voice note waveform, same shape logic as the app
-    const bars = Array.from({ length: 36 }, (_, i) => {
-      const v = 0.5 + 0.5 * Math.sin(i * 1.7) * Math.cos(i * 0.45);
-      const edge = Math.min(1, (i + 1) / 4, (36 - i) / 4);
-      return Math.max(0.14, (0.25 + v * 0.75) * (0.55 + edge * 0.45));
-    }).map((h, i) => `<span style="--h:${h.toFixed(2)};--i:${i}"></span>`).join('');
-    document.getElementById('demo-bars').innerHTML = bars;
-    document.getElementById('demo-bars-fill').innerHTML = bars;
+    // ── Principles: the one crossing the middle of the screen is in focus ──
+    const list = document.querySelector('.principle-list');
+    if (!reduced && 'IntersectionObserver' in window) {
+      const items = [...list.querySelectorAll('.principle')];
+      list.classList.add('is-spotlit');
+      items[0].classList.add('is-current');
+      const spot = new IntersectionObserver((entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) items.forEach(i => i.classList.toggle('is-current', i === e.target));
+        });
+      }, { rootMargin: '-46% 0px -46% 0px' });
+      items.forEach(i => spot.observe(i));
+    }
 
-    // The room plays out once when it scrolls into view
+    // ── The showcase: a real room, playing on a loop while it's on screen ──
     const frame = document.getElementById('showcase');
-    const active = frame.querySelector('.room-item.is-active');
-    const ind = frame.querySelector('.room-indicator');
-    ind.style.setProperty('--y', active.offsetTop + 'px');
-    ind.style.setProperty('--h', active.offsetHeight + 'px');
-    const show = (step) => {
-      frame.querySelectorAll(`[data-demo="${step}"]`).forEach((el) => {
-        el.classList.add('is-shown');
-        if (!reduced) el.classList.add(el.classList.contains('msg') ? 'is-new' : el.classList.contains('presence-event') ? 'is-new' : 'is-new-group');
+    const snapshot = frame.innerHTML;
+    const q = (s) => frame.querySelector(s);
+    const restart = (el, cls) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); };
+
+    class Cancelled extends Error {}
+    let token = 0;
+    const sleep = (ms, t) => new Promise((resolve, reject) =>
+      setTimeout(() => (t === token ? resolve() : reject(new Cancelled())), ms));
+
+    function waveBars(seed) {
+      return Array.from({ length: 36 }, (_, i) => {
+        const v = 0.5 + 0.5 * Math.sin(i * 1.7 + seed) * Math.cos(i * 0.45 + seed * 0.3);
+        const edge = Math.min(1, (i + 1) / 4, (36 - i) / 4);
+        return Math.max(0.14, (0.25 + v * 0.75) * (0.55 + edge * 0.45));
+      }).map((h, i) => `<span style="--h:${h.toFixed(2)};--i:${i}"></span>`).join('');
+    }
+
+    function placeIndicator(animate) {
+      const item = q('.room-item.is-active');
+      const ind  = q('.room-indicator');
+      if (!item || !item.offsetParent) return;   // sidebar hidden on narrow screens
+      if (!animate) ind.classList.add('no-anim');
+      ind.style.setProperty('--y', item.offsetTop + 'px');
+      ind.style.setProperty('--h', item.offsetHeight + 'px');
+      if (!animate) { void ind.offsetWidth; ind.classList.remove('no-anim'); }
+    }
+
+    function prepare() {
+      frame.querySelectorAll('[data-wave]').forEach((v) => {
+        v.querySelectorAll('.voice-bars').forEach(b => { b.innerHTML = waveBars(+v.dataset.wave); });
       });
-    };
-    const playVoice = () => {
-      const v = document.getElementById('demo-voice');
-      const fill = document.getElementById('demo-bars-fill');
-      const time = document.getElementById('demo-voice-time');
+      q('#demo-levels').innerHTML = '<span></span>'.repeat(90);
+      placeIndicator(false);
+    }
+
+    function show(name, animate = true) {
+      frame.querySelectorAll(`[data-demo="${name}"]`).forEach((el) => {
+        el.classList.add('is-shown');
+        if (animate) el.classList.add(el.classList.contains('msg-group') ? 'is-new-group' : 'is-new');
+      });
+    }
+
+    function arrive() {
+      q('#demo-presence').insertAdjacentHTML('beforeend',
+        '<span class="avatar avatar--sm is-entering" style="--tone:hsl(330 11% 19%);--tone-ink:hsl(330 22% 78%)">M</span>');
+      q('#demo-here').textContent = '2 here';
+    }
+
+    function bumpTrip() {
+      const item = q('[data-room="trip"]');
+      item.classList.add('has-unread');
+      restart(item, 'is-bumped');
+      item.querySelector('[data-time]').textContent = 'now';
+      item.querySelector('[data-preview]').textContent = 'Ines: Train gets in at 6.';
+      item.querySelectorAll('.room-item-row')[1].insertAdjacentHTML('beforeend', '<span class="badge is-entering">1</span>');
+      show('trip-ines', false);
+    }
+
+    function playVoice(sel, ms, totalSec, t) {
+      const v = q(sel);
+      const fill = v.querySelector('.voice-bars.is-fill');
+      const time = v.querySelector('.voice-time');
       v.classList.add('is-playing');
       const start = performance.now();
-      const dur = 6000;
       const tick = (now) => {
-        const p = Math.min(1, (now - start) / dur);
+        if (t !== token) return;
+        const p = Math.min(1, (now - start) / ms);
         fill.style.setProperty('--p', (p * 100).toFixed(1) + '%');
-        time.textContent = '0:' + String(Math.floor(p * 18)).padStart(2, '0');
-        if (p < 1) requestAnimationFrame(tick);
-        else { v.classList.remove('is-playing'); fill.style.setProperty('--p', '0%'); time.textContent = '0:18'; }
+        time.textContent = '0:' + String(Math.floor(p * totalSec)).padStart(2, '0');
+        if (p < 1) { requestAnimationFrame(tick); return; }
+        v.classList.remove('is-playing');
+        fill.style.setProperty('--p', '0%');
+        time.textContent = '0:' + String(totalSec).padStart(2, '0');
       };
       requestAnimationFrame(tick);
-    };
-    const arrive = () => {
-      const stack = document.getElementById('demo-presence');
-      stack.insertAdjacentHTML('beforeend', '<span class="avatar avatar--sm is-entering" style="--tone:hsl(330 11% 19%);--tone-ink:hsl(330 22% 78%)">M</span>');
-      document.getElementById('demo-here').textContent = '2 here';
-    };
-    const bumpOther = () => {
-      const item = document.getElementById('demo-other');
-      item.classList.add('has-unread', 'is-bumped');
-      document.getElementById('demo-other-time').textContent = 'now';
-      document.getElementById('demo-other-preview').textContent = 'Ines: Train gets in at 6.';
-      item.querySelectorAll('.room-item-row')[1].insertAdjacentHTML('beforeend', '<span class="badge is-entering">1</span>');
-    };
-    const ownReply = () => {
-      show(4);
-      document.getElementById('demo-preview').textContent = 'You: Listening now.';
-    };
+    }
 
-    const script = [
-      [500,  () => { show(1); arrive(); }],
-      [1700, () => show(2)],
-      [2900, () => { show(3); playVoice(); }],
-      [4300, bumpOther],
-      [6200, ownReply],
-    ];
+    // The real composer swaps mic → send as soon as there's text
+    async function type(text, t) {
+      const composer = q('#demo-composer');
+      const typed = q('#demo-typed');
+      composer.classList.add('is-typing');
+      for (const ch of text) {
+        typed.textContent += ch;
+        composer.classList.add('has-text');
+        await sleep(45 + Math.random() * 70, t);
+      }
+    }
+
+    async function send(t) {
+      const btn = q('#demo-send');
+      btn.classList.add('is-pressed');
+      await sleep(130, t);
+      btn.classList.remove('is-pressed');
+      q('#demo-typed').textContent = '';
+      q('#demo-composer').classList.remove('has-text', 'is-typing');
+      show('own-reply');
+      q('[data-room="studio"] [data-preview]').textContent = 'You: Listening now.';
+    }
+
+    function switchTo(room) {
+      frame.querySelectorAll('.room-item').forEach(i => i.classList.toggle('is-active', i.dataset.room === room));
+      placeIndicator(true);
+      const item = q(`[data-room="${room}"]`);
+      item.classList.remove('has-unread');
+      item.querySelector('.badge')?.remove();
+
+      restart(q('#demo-head'), 'is-switching');
+      q('#demo-title').textContent = room === 'trip' ? 'weekend-trip' : room;
+      q('#demo-members').textContent = '3 members';
+      q('#demo-presence').innerHTML =
+        '<span class="avatar avatar--sm is-entering" style="--tone:hsl(48 11% 19%);--tone-ink:hsl(48 22% 78%)">I</span>';
+      q('#demo-here').textContent = '1 here';
+      q('#demo-typed').dataset.placeholder = 'Message weekend-trip';
+
+      frame.querySelectorAll('[data-scene]').forEach(s => s.classList.remove('is-current'));
+      const scene = q(`[data-scene="${room}"]`);
+      scene.classList.add('is-current');
+      restart(scene, 'is-entering');
+    }
+
+    // Recording state with a live level meter, like the real composer
+    async function record(seconds, t) {
+      const composer = q('#demo-composer');
+      const rec = q('#demo-rec');
+      const bars = [...q('#demo-levels').children];
+      const timeEl = q('#demo-rec-time');
+      const levels = bars.map(() => 0.06);
+      composer.classList.add('is-recording');
+      rec.hidden = false;
+      const start = performance.now();
+      const iv = setInterval(() => {
+        const s = (performance.now() - start) / 1000;
+        const speech = 0.25 + 0.6 * Math.abs(Math.sin(s * 5.3) * Math.sin(s * 2.1 + 1));
+        levels.shift();
+        levels.push(Math.max(0.06, Math.min(1, speech + (Math.random() - 0.5) * 0.25)));
+        bars.forEach((b, i) => { b.style.transform = `scaleY(${levels[i].toFixed(3)})`; });
+        timeEl.textContent = '0:' + String(Math.floor(s)).padStart(2, '0');
+      }, 80);
+      try {
+        await sleep(seconds * 1000, t);
+      } finally {
+        clearInterval(iv);
+      }
+      composer.classList.remove('is-recording');
+      rec.hidden = true;
+    }
+
+    async function crossfade(t) {
+      frame.style.transition = 'opacity 380ms var(--ease-out)';
+      frame.style.opacity = '0';
+      await sleep(400, t);
+      frame.innerHTML = snapshot;
+      prepare();
+      frame.style.opacity = '1';
+    }
+
+    async function loop(t) {
+      try {
+        frame.innerHTML = snapshot;
+        prepare();
+        for (;;) {
+          await sleep(700, t);  show('join'); arrive();
+          await sleep(1300, t); show('maya-text');
+          await sleep(1100, t); show('maya-voice'); playVoice('#demo-voice-maya', 5200, 18, t);
+          await sleep(1700, t); bumpTrip();
+          await sleep(1600, t); await type('Listening now.', t);
+          await sleep(350, t);  await send(t);
+          await sleep(2600, t); switchTo('trip');
+          await sleep(1400, t); await record(2.6, t);
+          show('own-voice');
+          await sleep(450, t);  playVoice('#demo-voice-own', 2600, 3, t);
+          await sleep(4200, t); await crossfade(t);
+        }
+      } catch (e) {
+        if (!(e instanceof Cancelled)) throw e;
+      }
+    }
 
     if (reduced) {
-      [1, 2, 3].forEach(show); arrive(); bumpOther(); ownReply();
+      // A single, still frame of the room mid-conversation
+      prepare();
+      ['join', 'maya-text', 'maya-voice', 'own-reply'].forEach(n => show(n, false));
+      arrive(); bumpTrip();
+      q('[data-room="studio"] [data-preview]').textContent = 'You: Listening now.';
       return;
     }
-    const io2 = new IntersectionObserver((entries) => {
-      if (!entries[0].isIntersecting) return;
-      io2.disconnect();
-      script.forEach(([t, fn]) => setTimeout(fn, t));
-    }, { threshold: 0.45 });
-    io2.observe(frame);
+
+    // Only animate while visible; start fresh each time it comes back
+    prepare();
+    new IntersectionObserver((entries) => {
+      token++;
+      frame.style.opacity = '1';
+      if (entries[0].isIntersecting) loop(token);
+    }, { threshold: 0.35 }).observe(frame);
+    window.addEventListener('resize', () => placeIndicator(false), { passive: true });
   })();
 </script>
 </body>

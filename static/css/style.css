@@ -1605,14 +1605,36 @@ textarea.input { height: auto; min-height: 96px; padding: var(--s-3) var(--s-4);
   line-height: 0.96;
   letter-spacing: var(--track-display);
 }
-.hero-title > span { display: block; }
+/* Each line rises from behind its own mask */
+.hero-line { display: block; overflow: hidden; padding-bottom: 0.06em; margin-bottom: -0.06em; }
+.hero-line > span { display: inline-flex; align-items: center; gap: 0.16em; animation: hero-line 1100ms var(--ease-out) both; }
+.hero-line:nth-child(2) > span { animation-delay: 110ms; }
+.hero-line:nth-child(3) > span { animation-delay: 220ms; }
+@keyframes hero-line { from { transform: translateY(105%); } to { transform: none; } }
 .hero-title .is-dim { color: var(--text-4); }
-.hero-title .hero-live { display: inline-flex; align-items: center; gap: 0.16em; }
-.hero-title .hero-live .live-dot { width: 0.13em; height: 0.13em; margin-top: 0.1em; }
-.hero-title > span { animation: hero-line 900ms var(--ease-out) both; }
-.hero-title > span:nth-child(2) { animation-delay: 90ms; }
-.hero-title > span:nth-child(3) { animation-delay: 180ms; }
-@keyframes hero-line { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+.hero-title .is-dim { animation: hero-dim 1600ms var(--ease-out) 500ms both; }
+@keyframes hero-dim { from { color: var(--text); } to { color: var(--text-4); } }
+
+/* "Live." — the dot lands, then keeps a slow signal */
+.signal-dot { position: relative; width: 0.13em; height: 0.13em; margin-top: 0.1em; flex-shrink: 0; }
+.signal-dot .live-dot { display: block; width: 100%; height: 100%; animation: pop-in 500ms var(--ease-pop) 900ms both; }
+.signal-dot::before,
+.signal-dot::after {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 0.012em solid var(--accent);
+  opacity: 0;
+  animation: signal 3.2s var(--ease-out) 1.4s infinite;
+}
+.signal-dot::after { animation-delay: 2.2s; }
+@keyframes signal {
+  0%   { opacity: 0.7; transform: scale(1); }
+  70%  { opacity: 0;   transform: scale(4.2); }
+  100% { opacity: 0;   transform: scale(4.2); }
+}
+
+.hero .kicker { animation: fade-in 700ms var(--ease-out) both; }
 
 .hero-foot {
   display: flex; align-items: flex-end; justify-content: space-between; gap: var(--s-10);
@@ -1646,6 +1668,24 @@ textarea.input { height: auto; min-height: 96px; padding: var(--s-3) var(--s-4);
 .showcase-frame [data-demo] { display: none; }
 .showcase-frame [data-demo].is-shown { display: flex; }
 .showcase-frame .msg[data-demo].is-shown { display: block; }
+.showcase-frame .timeline-inner[data-scene]:not(.is-current) { display: none; }
+.showcase-frame .room-head-title.is-switching { animation: slide-in-x var(--dur-ui) var(--ease-out); }
+
+/* Composer typing in the demo */
+.demo-typed { color: var(--text); white-space: pre; }
+.demo-typed:empty::before { content: attr(data-placeholder); color: var(--text-3); }
+.composer.is-typing .demo-typed::after {
+  content: '';
+  display: inline-block;
+  width: 1.5px; height: 1.1em;
+  margin-left: 1px;
+  vertical-align: -0.18em;
+  background: var(--text);
+  animation: caret 1s steps(1) infinite;
+}
+@keyframes caret { 50% { opacity: 0; } }
+.showcase-frame .composer.is-typing { background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--line-3), 0 16px 40px -20px rgba(0, 0, 0, 0.9); }
+.showcase-frame .composer-send.is-pressed { transform: scale(0.88); }
 .msg-group.is-new-group { animation: msg-in 320ms var(--ease-out) both; }
 .is-own.msg-group.is-new-group { animation-name: msg-in-own; }
 .showcase-caption {
@@ -1669,7 +1709,12 @@ textarea.input { height: auto; min-height: 96px; padding: var(--s-3) var(--s-4);
   line-height: var(--lh-tight);
   letter-spacing: var(--track-title);
 }
+/* One principle in focus at a time as you scroll */
+.principle-list.is-spotlit .principle > * { transition: opacity 500ms var(--ease-out), color 500ms var(--ease-out); }
+.principle-list.is-spotlit .principle:not(.is-current) > * { opacity: 0.32; }
+.principle-list.is-spotlit .principle.is-current .principle-n { color: var(--accent); }
 .principle {
+  position: relative;
   display: grid;
   grid-template-columns: 80px minmax(0, 1fr) minmax(0, 1.1fr);
   gap: var(--s-8);
@@ -1682,7 +1727,21 @@ textarea.input { height: auto; min-height: 96px; padding: var(--s-3) var(--s-4);
 
 .steps { padding-bottom: clamp(64px, 12vh, 144px); }
 .steps-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.step { padding: var(--s-8) var(--s-8) var(--s-8) 0; }
+.steps-grid { position: relative; }
+.step { position: relative; padding: var(--s-8) var(--s-8) var(--s-8) 0; }
+/* A progress line draws across the steps, in order */
+.step::before {
+  content: '';
+  position: absolute; top: -1px; left: 0; right: 0;
+  height: 1px;
+  background: var(--text);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 900ms var(--ease-in-out) var(--d, 0ms);
+}
+.step.is-in::before { transform: scaleX(1); }
+.step-n { transition: color 400ms var(--ease-out) calc(var(--d, 0ms) + 500ms); }
+.step.is-in .step-n { color: var(--accent); }
 .step + .step { padding-left: var(--s-8); border-left: 1px solid var(--line); }
 .step-n     { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--text-3); }
 .step-title { margin-top: var(--s-12); font-size: var(--fs-xl); font-weight: 600; letter-spacing: -0.02em; }
@@ -1711,7 +1770,15 @@ textarea.input { height: auto; min-height: 96px; padding: var(--s-3) var(--s-4);
 }
 .site-foot a:hover { color: var(--text); }
 
-.reveal { opacity: 0; transform: translateY(16px); transition: opacity 700ms var(--ease-out), transform 700ms var(--ease-out); }
+.closing-title { display: inline-flex; align-items: center; gap: 0.12em; }
+.closing-title .signal-dot { width: 0.12em; height: 0.12em; margin-top: 0.12em; }
+.closing-title .signal-dot .live-dot { animation: none; }
+
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 700ms var(--ease-out) var(--d, 0ms), transform 700ms var(--ease-out) var(--d, 0ms);
+}
 .reveal.is-in { opacity: 1; transform: none; }
 
 

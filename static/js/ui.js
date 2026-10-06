@@ -127,7 +127,7 @@ function formatDuration(sec) {
 const _reducedMotionMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
 function reducedMotion() { return _reducedMotionMQ.matches; }
 
-const _mobileMQ = window.matchMedia('(max-width: 768px)');
+const _mobileMQ = window.matchMedia('(max-width: 768px), (hover: none) and (pointer: coarse) and (max-width: 1200px)');
 function isMobile() { return _mobileMQ.matches; }
 
 function isTouch() { return window.matchMedia('(pointer: coarse)').matches; }

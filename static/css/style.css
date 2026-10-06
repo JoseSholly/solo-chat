@@ -1789,7 +1789,7 @@ textarea.input { height: auto; min-height: 96px; padding: var(--s-3) var(--s-4);
   .room-head .presence-label-text { display: none; }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 900px), (hover: none) and (pointer: coarse) and (max-width: 1200px) {
   .showcase-frame { grid-template-columns: minmax(0, 1fr); }
   .showcase-frame .sidebar { display: none; }
   .principle { grid-template-columns: 48px minmax(0, 1fr); }
@@ -1800,13 +1800,13 @@ textarea.input { height: auto; min-height: 96px; padding: var(--s-3) var(--s-4);
   .step-title { margin-top: var(--s-4); }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 860px), (hover: none) and (pointer: coarse) and (max-width: 1200px) {
   .auth { grid-template-columns: minmax(0, 1fr); }
   .auth-aside { display: none; }
 }
 
 /* Mobile: the conversation is the primary view; rooms become a drawer */
-@media (max-width: 768px) {
+@media (max-width: 768px), (hover: none) and (pointer: coarse) and (max-width: 1200px) {
   :root { --gutter: 16px; --header-h: 58px; }
 
   .app { position: relative; }

@@ -38,12 +38,18 @@ def test_get_user_dashboard_room_with_unread_messages(user, other_user, room):
     )
 
     m1 = Message.objects.create(
-        room=room, sender=other_user, username=other_user.username,
-        message_type=Message.MessageType.TEXT, content="hi",
+        room=room,
+        sender=other_user,
+        username=other_user.username,
+        message_type=Message.MessageType.TEXT,
+        content="hi",
     )
     m2 = Message.objects.create(
-        room=room, sender=other_user, username=other_user.username,
-        message_type=Message.MessageType.TEXT, content="you there?",
+        room=room,
+        sender=other_user,
+        username=other_user.username,
+        message_type=Message.MessageType.TEXT,
+        content="you there?",
     )
     # Force distinct timestamps — SQLite auto_now_add can tie within one tick.
     now = timezone.now()
@@ -67,8 +73,11 @@ def test_get_user_dashboard_no_unread_when_last_seen_is_after_latest_message(
 ):
     RoomMembership.objects.create(user=other_user, room=room)
     Message.objects.create(
-        room=room, sender=other_user, username=other_user.username,
-        message_type=Message.MessageType.TEXT, content="hi",
+        room=room,
+        sender=other_user,
+        username=other_user.username,
+        message_type=Message.MessageType.TEXT,
+        content="hi",
     )
     # Move last_seen forward, past the message
     membership = RoomMembership.objects.get(user=user, room=room)
@@ -93,8 +102,11 @@ def test_get_user_dashboard_across_multiple_rooms(user, other_user):
         last_seen=timezone.now() - timedelta(hours=1)
     )
     Message.objects.create(
-        room=r1, sender=other_user, username=other_user.username,
-        message_type=Message.MessageType.TEXT, content="hey",
+        room=r1,
+        sender=other_user,
+        username=other_user.username,
+        message_type=Message.MessageType.TEXT,
+        content="hey",
     )
 
     data = RoomDashboardRepository.get_user_dashboard(user)

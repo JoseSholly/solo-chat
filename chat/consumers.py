@@ -143,6 +143,20 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
                 return
             await self._save_text(content)
 
+        # Presence roll call: join/leave are only broadcast as they happen, so
+        # a newcomer can't see who was already connected. Clients that are
+        # already in the room answer a join with "here"; nothing is stored.
+        elif message_type == "here":
+            await self.channel_layer.group_send(
+                self.group_name,
+                {
+                    "type": "presence_event",
+                    "event": "here",
+                    "username": self.user.username,
+                    "display_name": self.user.display_name,
+                },
+            )
+
     async def chat_message(self, event):
         await self.send(text_data=json.dumps(event))
 

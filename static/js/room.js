@@ -1,12 +1,6 @@
-/* Room panel — depends on api.js, auth.js, dashboard.js */
-
-const _AVATAR_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f97316','#14b8a6','#0ea5e9','#84cc16'];
-
-function _avatarColor(name) {
-  let h = 0;
-  for (const c of (name || '')) h = ((h << 5) - h + c.charCodeAt(0)) | 0;
-  return _AVATAR_COLORS[Math.abs(h) % _AVATAR_COLORS.length];
-}
+/* Room panel — header, connection, presence, details drawer, and the room's
+   WebSocket. Depends on api.js, auth.js, ui.js, dashboard.js, messages.js,
+   composer.js. */
 
 let _activePanel = null;
 
@@ -19,659 +13,364 @@ function loadRoomPanel(room) {
   _activePanel = new RoomPanel(room, document.getElementById('main-panel'));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-const BACK_SVG = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-  stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-  <polyline points="15 18 9 12 15 6"/>
-</svg>`;
-
-const PEOPLE_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-  <circle cx="9" cy="7" r="4"/>
-  <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-  <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-</svg>`;
-
-const LINK_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-  stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
-  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
-</svg>`;
-
-const SEND_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-  stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-  <line x1="22" y1="2" x2="11" y2="13"/>
-  <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-</svg>`;
-
-const MIC_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-  <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-  <line x1="12" y1="19" x2="12" y2="23"/>
-  <line x1="8" y1="23" x2="16" y2="23"/>
-</svg>`;
-
-const IMAGE_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-  <circle cx="8.5" cy="8.5" r="1.5"/>
-  <polyline points="21 15 16 10 5 21"/>
-</svg>`;
-
-const EDIT_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-</svg>`;
-
-const LEAVE_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-  <polyline points="16 17 21 12 16 7"/>
-  <line x1="21" y1="12" x2="9" y2="12"/>
-</svg>`;
-
-const TRASH_SVG = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <polyline points="3 6 5 6 21 6"/>
-  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-  <path d="M10 11v6"/><path d="M14 11v6"/>
-</svg>`;
-
-// ─────────────────────────────────────────────────────────────────────────────
+const MAX_RECONNECTS = 6;
 
 class RoomPanel {
   constructor(room, container) {
-    this.room             = room;
-    this.container        = container;
-    this.ws               = null;
-    this.wsReady          = false;
-    this.reconnectCount   = 0;
-    this.maxReconnects    = 5;
-    this._reconnectTimer  = null;
-    this._userScrolled    = false;
-    this.onlineUsers      = new Set();
-    this._renderedIds     = new Set();
+    this.room      = room;
+    this.container = container;
+    this.me        = getUser() || {};
 
+    this.ws             = null;
+    this.wsReady        = false;
+    this.reconnectCount = 0;
+    this._reconnectTimer = null;
+    this._authRetried   = false;
+    this._everConnected = false;
+    this._destroyed     = false;
     this._markSeenTimer = null;
+    this._lastRollCall  = 0;
+    this._historyReady  = false;
+    this._pending       = [];   // live messages that arrive before history renders
 
-    this._membersOffset  = 0;
-    this._membersHasMore = true;
-    this._membersLoading = false;
+    this.online  = new Map();   // username → { display_name } — people connected right now
+    this.members = new Map();   // username → member, as loaded for the drawer
+
+    this._membersOffset   = 0;
+    this._membersHasMore  = true;
+    this._membersLoading  = false;
     this._membersObserver = null;
+    this._drawer = null;
+    this._profileLayer = null;
 
     this._render();
-    this._bindEvents();
+
+    this.messages = new MessageList(this._el.timeline, this._el.jump, {
+      onOpenProfile: (u) => this._showProfile(u),
+      onSeen:        () => this._markSeen(),
+    });
+
+    this.composer = new Composer(this._el.composer, {
+      roomSlug:   room.slug,
+      roomName:   room.name,
+      dropTarget: this._el.root,
+      onSendText: (content) => this._sendText(content),
+      onUploaded: (msg) => this._onChatMessage(msg),
+    });
+
+    this._bind();
     this._loadHistory();
     this._connectWS();
     this._loadMembers();
+    this.composer.focus();
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Render ──────────────────────────────────────────────────────────────
 
   _render() {
     const r = this.room;
-    const editBtn = r.is_creator
-      ? `<button class="btn-icon" id="rp-edit" title="Edit room">${EDIT_SVG}</button>`
-      : '';
-    const actionBtn = r.is_creator
-      ? `<button class="btn-icon" id="rp-delete" title="Delete room" style="color:var(--error)">${TRASH_SVG}</button>`
-      : `<button class="btn-icon" id="rp-leave"  title="Leave room">${LEAVE_SVG}</button>`;
-
     this.container.innerHTML = `
-      <div class="room-panel">
-        <div class="room-header">
-          <button class="btn-icon rp-back-btn" id="rp-back" title="Back to rooms" aria-label="Back to rooms">
-            ${BACK_SVG}
-          </button>
-          <div>
-            <span class="room-header-name">${escHtml(r.name)}</span>
-            <span class="room-header-meta" id="rp-meta">${r.member_count} member${r.member_count !== 1 ? 's' : ''}</span>
-          </div>
-          <div class="room-header-spacer"></div>
-          <button class="btn btn-ghost rp-copy-btn" id="rp-copy-link" style="font-size:13px;height:32px">
-            ${LINK_SVG}<span class="rp-copy-label">Copy Invite Link</span>
-          </button>
-          <button class="btn-icon rp-members-btn" id="rp-members-btn" title="Members" aria-label="Toggle members">
-            ${PEOPLE_SVG}
-          </button>
-          ${editBtn}
-          ${actionBtn}
-        </div>
-
-        <div class="ws-status hidden" id="rp-status"></div>
-
-        <div class="room-body" id="rp-body">
-          <div class="members-backdrop" id="rp-backdrop"></div>
-
-          <div class="chat-column">
-            <div class="chat-area" id="rp-chat"></div>
-            <div class="chat-input-bar">
-              <input type="file" id="rp-img-file"   accept="image/*" style="display:none">
-              <input type="file" id="rp-voice-file" accept="audio/*" style="display:none">
-              <button class="btn-icon" id="rp-img-btn"   title="Send image"      disabled>${IMAGE_SVG}</button>
-              <button class="btn-icon" id="rp-voice-btn" title="Send voice note" disabled>${MIC_SVG}</button>
-              <input class="chat-input" type="text" id="rp-input"
-                     placeholder="Message…" autocomplete="off" disabled>
-              <button class="btn btn-primary" id="rp-send" disabled
-                      style="width:38px;height:38px;padding:0;flex-shrink:0">${SEND_SVG}</button>
+      <section class="room" aria-labelledby="rp-title">
+        <header class="room-head">
+          <button type="button" class="icon-btn room-nav-btn" id="rp-nav" aria-label="Rooms">${icon('menu', 20)}</button>
+          <div class="room-head-title">
+            <h1 class="room-title" id="rp-title">${escHtml(r.name)}</h1>
+            <div class="room-sub">
+              <span class="conn" id="rp-conn" data-state="connecting" role="status">
+                <span class="conn-dot" aria-hidden="true"></span><span class="conn-label">Connecting…</span>
+              </span>
+              <span class="room-sub-sep" aria-hidden="true">·</span>
+              <span id="rp-meta" class="truncate">${this._memberCountText()}</span>
             </div>
           </div>
+          <button type="button" class="presence is-alone" id="rp-presence" aria-label="See who's here">
+            <span class="presence-avatars" id="rp-presence-avatars"></span>
+            <span class="presence-label"><span class="live-dot" aria-hidden="true"></span><span class="presence-label-text" id="rp-presence-text">Just you</span></span>
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="rp-invite" title="Copy invite link">
+            ${icon('link', 16)}<span class="btn-label">Invite</span>
+          </button>
+          <button type="button" class="icon-btn" id="rp-details" aria-label="Room details"
+                  aria-expanded="false" aria-controls="rp-drawer" title="Details">${icon('panel', 19)}</button>
+        </header>
 
-          <div class="members-panel" id="rp-members-panel">
-            <div class="members-panel-header" id="rp-members-header">MEMBERS</div>
-            <div class="members-list" id="rp-members-list">
-              <div class="loading-state" style="padding:20px 0"><div class="spinner"></div></div>
-            </div>
-          </div>
+        <div class="timeline-wrap">
+          <div class="timeline" id="rp-timeline" role="log" aria-label="Messages" aria-live="polite" tabindex="-1"></div>
+          <button type="button" class="jump-pill" id="rp-jump">
+            <span class="live-dot" aria-hidden="true"></span>
+            <span class="jump-pill-label">New messages</span>
+            ${icon('arrowDown', 15)}
+          </button>
         </div>
-      </div>`;
 
+        <div class="composer-wrap" id="rp-composer"></div>
+        <div class="drop-zone" aria-hidden="true">Drop an image or audio file to send it</div>
+      </section>
+
+      <div class="drawer-scrim" id="rp-scrim"></div>
+      <aside class="drawer" id="rp-drawer" role="dialog" aria-modal="true" aria-labelledby="rp-drawer-title">
+        <div class="drawer-head">
+          <span id="rp-drawer-title">Room details</span>
+          <button type="button" class="icon-btn" data-act="close-drawer" aria-label="Close details">${icon('close', 18)}</button>
+        </div>
+        <div class="drawer-body" id="rp-drawer-body">
+          <section class="drawer-section drawer-room" id="rp-drawer-room"></section>
+          <section class="drawer-section">
+            <div class="drawer-label"><span>Invite link</span></div>
+            <div class="invite-field">
+              <code id="rp-invite-url">${escHtml(this._inviteUrl())}</code>
+              <button type="button" class="btn btn-ghost btn-sm" data-act="copy-invite">${icon('link', 15)} Copy</button>
+            </div>
+            <p class="invite-hint">Anyone with this link can join after signing in.</p>
+          </section>
+          <section class="drawer-section">
+            <div class="drawer-label">
+              <span>Members <span class="mono" id="rp-members-total"></span></span>
+              <span class="mono" id="rp-members-online"></span>
+            </div>
+            <div class="member-list" id="rp-members-list" role="list">
+              <div class="room-skeleton" aria-hidden="true"><span class="skeleton" style="border-radius:50%;width:32px;height:32px"></span><span class="room-skeleton-lines"><span class="skeleton"></span><span class="skeleton"></span></span></div>
+            </div>
+          </section>
+        </div>
+        <div class="drawer-foot" id="rp-drawer-foot"></div>
+      </aside>`;
+
+    const q = (id) => document.getElementById(id);
     this._el = {
-      chat:      document.getElementById('rp-chat'),
-      input:     document.getElementById('rp-input'),
-      send:      document.getElementById('rp-send'),
-      imgBtn:    document.getElementById('rp-img-btn'),
-      imgFile:   document.getElementById('rp-img-file'),
-      voiceBtn:  document.getElementById('rp-voice-btn'),
-      voiceFile: document.getElementById('rp-voice-file'),
-      status:    document.getElementById('rp-status'),
-      meta:      document.getElementById('rp-meta'),
+      root:       this.container.querySelector('.room'),
+      title:      q('rp-title'),
+      conn:       q('rp-conn'),
+      meta:       q('rp-meta'),
+      presence:   q('rp-presence'),
+      avatars:    q('rp-presence-avatars'),
+      presenceTx: q('rp-presence-text'),
+      invite:     q('rp-invite'),
+      details:    q('rp-details'),
+      timeline:   q('rp-timeline'),
+      jump:       q('rp-jump'),
+      composer:   q('rp-composer'),
+      drawer:     q('rp-drawer'),
+      scrim:      q('rp-scrim'),
+      drawerBody: q('rp-drawer-body'),
     };
+    this._renderDrawerRoom();
   }
 
-  // ── Events ────────────────────────────────────────────────────────────────
+  _inviteUrl() { return `${location.origin}/join/${this.room.slug}/`; }
 
-  _bindEvents() {
-    document.getElementById('rp-back')?.addEventListener('click', () => {
-      document.querySelector('.app-layout')?.classList.remove('room-open');
+  _memberCountText() {
+    const n = this.room.member_count ?? 0;
+    return `${n} member${n !== 1 ? 's' : ''}`;
+  }
+
+  _renderDrawerRoom() {
+    const r = this.room;
+    const created = r.created_at
+      ? new Date(r.created_at).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' })
+      : '';
+    const by = r.creator_username ? ` by @${r.creator_username}` : '';
+    document.getElementById('rp-drawer-room').innerHTML = `
+      ${monogramHtml(r.name, 'lg')}
+      <h2 class="drawer-room-name">${escHtml(r.name)}</h2>
+      ${r.description ? `<p class="drawer-room-desc">${escHtml(r.description)}</p>` : ''}
+      ${created ? `<p class="drawer-room-meta">Created ${escHtml(created)}${escHtml(by)}</p>` : ''}`;
+
+    document.getElementById('rp-drawer-foot').innerHTML = r.is_creator ? `
+      <button type="button" class="btn btn-ghost" data-act="edit">${icon('edit', 17)} Edit room</button>
+      <button type="button" class="btn btn-ghost" data-act="delete" style="color:var(--danger)">${icon('trash', 17)} Delete room</button>` : `
+      <button type="button" class="btn btn-ghost" data-act="leave" style="color:var(--danger)">${icon('leave', 17)} Leave room</button>`;
+  }
+
+  // ── Events ──────────────────────────────────────────────────────────────
+
+  _bind() {
+    document.getElementById('rp-nav').addEventListener('click', () => Nav.open());
+    this._el.details.addEventListener('click', () => this._openDrawer());
+    this._el.presence.addEventListener('click', () => this._openDrawer());
+    this._el.invite.addEventListener('click', () => this._copyInvite(this._el.invite, `${icon('check', 16)}<span class="btn-label">Copied</span>`));
+
+    this._el.drawer.addEventListener('click', (e) => {
+      const act = e.target.closest('[data-act]')?.dataset.act;
+      if (act === 'close-drawer') this._drawer?.close();
+      if (act === 'copy-invite')  this._copyInvite(e.target.closest('[data-act]'), `${icon('check', 15)} Copied`);
+      if (act === 'edit')   this._openEditModal();
+      if (act === 'delete') this._deleteRoom();
+      if (act === 'leave')  this._leaveRoom();
+      const m = e.target.closest('.member');
+      if (m) this._showProfile(this.members.get(m.dataset.username) || { username: m.dataset.username });
     });
 
-    document.getElementById('rp-members-btn')?.addEventListener('click', () => this._toggleMembers());
-    document.getElementById('rp-backdrop')?.addEventListener('click', () => this._closeMembersDrawer());
-
-    document.getElementById('rp-copy-link').addEventListener('click', () => {
-      const link = `${location.origin}/join/${this.room.slug}/`;
-      navigator.clipboard.writeText(link).then(() => showToast('Invite link copied!'));
+    // The connection retry link lives inside the status line
+    this._el.conn.addEventListener('click', (e) => {
+      if (e.target.closest('.conn-retry')) this._retryNow();
     });
 
-    const leaveBtn  = document.getElementById('rp-leave');
-    const deleteBtn = document.getElementById('rp-delete');
-    const editBtn   = document.getElementById('rp-edit');
-    if (leaveBtn)  leaveBtn.addEventListener('click',  () => this._leaveRoom());
-    if (deleteBtn) deleteBtn.addEventListener('click', () => this._deleteRoom());
-    if (editBtn)   editBtn.addEventListener('click',   () => this._openEditModal());
+    // Come back from a lost connection as soon as the network or tab returns
+    this._onOnline     = () => this._retryNow();
+    this._onVisibility = () => { if (!document.hidden) this._retryIfGivenUp(); };
+    window.addEventListener('online', this._onOnline);
+    document.addEventListener('visibilitychange', this._onVisibility);
+  }
 
-    this._el.send.addEventListener('click', () => this._sendText());
-    this._el.input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this._sendText(); }
-    });
+  async _copyInvite(btn, doneHtml) {
+    const ok = await copyText(this._inviteUrl());
+    if (ok) {
+      flashButton(btn, doneHtml);
+      announce('Invite link copied');
+    } else {
+      showToast('Couldn\'t copy. The link is in Room details.', 'error');
+    }
+  }
 
-    this._el.imgBtn.addEventListener('click', () => this._el.imgFile.click());
-    this._el.imgFile.addEventListener('change', () => {
-      const f = this._el.imgFile.files[0];
-      if (f) this._uploadImage(f);
-      this._el.imgFile.value = '';
-    });
+  // ── Drawer ──────────────────────────────────────────────────────────────
 
-    this._el.voiceBtn.addEventListener('click',  () => this._el.voiceFile.click());
-    this._el.voiceFile.addEventListener('change', () => {
-      const f = this._el.voiceFile.files[0];
-      if (f) this._uploadVoice(f);
-      this._el.voiceFile.value = '';
-    });
-
-    this._el.chat.addEventListener('scroll', () => {
-      this._userScrolled = !this._isAtBottom();
-    });
-
-    // Image click → lightbox
-    this._el.chat.addEventListener('click', (e) => {
-      const img = e.target.closest('img[data-lightbox-src]');
-      if (img) { this._openLightbox(img.dataset.lightboxSrc); return; }
-    });
-
-    // Avatar click → profile modal
-    this._el.chat.addEventListener('click', (e) => {
-      const av = e.target.closest('.msg-avatar.clickable');
-      if (!av) return;
-      if (av.dataset.own === 'true') {
-        this._openOwnProfileModal();
-      } else if (av.dataset.username) {
-        this._fetchAndShowProfile({
-          username:     av.dataset.username,
-          display_name: av.dataset.displayName || av.dataset.username,
-          avatar_url:   av.dataset.avatarUrl   || null,
-        });
-      }
+  _openDrawer() {
+    if (this._drawer) return;
+    this._el.details.setAttribute('aria-expanded', 'true');
+    this._drawer = openLayer(this._el.drawer, {
+      backdrop: this._el.scrim,
+      initialFocus: '[data-act="close-drawer"]',
+      onClose: () => {
+        this._drawer = null;
+        this._el.details?.setAttribute('aria-expanded', 'false');
+      },
     });
   }
 
-  // ── History ───────────────────────────────────────────────────────────────
+  // ── History ─────────────────────────────────────────────────────────────
 
   async _loadHistory() {
-    this._el.chat.innerHTML = '<div class="loading-state"><div class="spinner"></div></div>';
+    this.messages.showLoading();
     const res = await apiFetch(`/api/rooms/${this.room.slug}/`);
-    if (!res.ok) { this._el.chat.innerHTML = ''; return; }
+    if (this._destroyed) return;
+    if (!res.ok) { this.messages.showError('Messages didn\'t load. Check your connection and reopen the room.'); return; }
 
     const data = await res.json();
-    this.room = { ...this.room, ...data.room };
-    this._updateMeta();
-    this._syncEditButton();
+    if (this._destroyed) return;
+    this.room = { ...this.room, ...data.room, slug: String(data.room.slug) };
+    this._el.meta.textContent = this._memberCountText();
+    this._renderDrawerRoom();
+    this.messages.renderHistory(data.messages, this.room);
 
-    this._el.chat.innerHTML = '';
-    if (data.messages.length === 0) {
-      this._appendSystem('No messages yet. Say hello!');
-    } else {
-      data.messages.forEach(m => this._appendMessage(m, false));
-    }
-    this._scrollToBottom(false);
+    // Anything that arrived over the socket while history was in flight
+    this._historyReady = true;
+    this._pending.forEach(m => this.messages.append(m, { live: true }));
+    this._pending = [];
   }
 
-  // ── WebSocket ─────────────────────────────────────────────────────────────
+  // ── WebSocket ───────────────────────────────────────────────────────────
 
   _connectWS() {
+    if (this._destroyed) return;
+    clearTimeout(this._reconnectTimer);
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const url   = `${proto}://${location.host}/ws/chat/${this.room.slug}/?token=${getAccessToken()}`;
-    this._setStatus('Connecting…', 'connecting');
+    const ws = new WebSocket(`${proto}://${location.host}/ws/chat/${this.room.slug}/?token=${getAccessToken()}`);
+    this.ws = ws;
+    if (!this._everConnected) this._setConn('connecting');
 
-    this.ws = new WebSocket(url);
-
-    this.ws.onopen = () => {
-      this.wsReady       = true;
+    ws.onopen = () => {
+      const restored = this._everConnected;
+      this.wsReady = true;
       this.reconnectCount = 0;
-      this._setStatus('', '');
-      this._enableInput(true);
+      this._everConnected = true;
+      // Presence is rebuilt from scratch on every (re)connect: the roll call
+      // triggered by our own join tells us who is here.
+      this.online.clear();
+      this._renderPresence();
+      this._setConn('live', { restored });
+      this.composer.setOnline(true);
     };
 
-    this.ws.onmessage = (e) => {
-      const msg = JSON.parse(e.data);
-      if (msg.type === 'chat_message')  this._appendMessage(msg, true);
-      if (msg.type === 'presence_event') this._handlePresence(msg);
+    ws.onmessage = (e) => {
+      let msg;
+      try { msg = JSON.parse(e.data); } catch { return; }
+      if (msg.type === 'chat_message')   this._onChatMessage(msg);
+      if (msg.type === 'presence_event') this._onPresence(msg);
     };
 
-    this.ws.onclose = (e) => {
+    ws.onclose = async (e) => {
+      if (this.ws !== ws) return;
       this.wsReady = false;
-      this._enableInput(false);
+      this.composer.setOnline(false);
+      if (e.code === 4001 && !this._authRetried) {
+        // Access token expired while we were connected: refresh once, retry.
+        this._authRetried = true;
+        if (await _tryRefresh()) { this._connectWS(); return; }
+      }
       if (e.code === 4001 || e.code === 4003 || e.code === 4004) {
-        this._setStatus('Cannot connect — check your membership.', 'error');
+        this._setConn('denied');
         return;
       }
       this._scheduleReconnect();
     };
-
-    this.ws.onerror = () => { this.wsReady = false; this._enableInput(false); };
   }
 
   _scheduleReconnect() {
-    if (this.reconnectCount >= this.maxReconnects) {
-      this._setStatus('Connection lost. Refresh the page to retry.', 'error');
+    if (this.reconnectCount >= MAX_RECONNECTS) {
+      this._setConn('offline');
       return;
     }
     const delay = Math.min(1000 * 2 ** this.reconnectCount, 12000);
     this.reconnectCount++;
-    this._setStatus('Reconnecting…', 'connecting');
+    this._setConn('reconnecting');
     this._reconnectTimer = setTimeout(() => this._connectWS(), delay);
   }
 
-  // ── Presence ──────────────────────────────────────────────────────────────
-
-  _handlePresence(msg) {
-    if (msg.event === 'join') this.onlineUsers.add(msg.username);
-    else this.onlineUsers.delete(msg.username);
-    this._updateMeta();
-    this._updateMemberDot(msg.username, msg.event === 'join');
+  _retryNow() {
+    if (this._destroyed || this.wsReady) return;
+    if (this.ws) { this.ws.onclose = null; this.ws.close(); }
+    this.reconnectCount = 0;
+    this._setConn('reconnecting');
+    this._connectWS();
   }
 
-  _updateMeta() {
-    if (!this._el.meta) return;
-    const mc = this.room.member_count;
-    const oc = this.onlineUsers.size;
-    this._el.meta.textContent =
-      `${mc} member${mc !== 1 ? 's' : ''}${oc > 0 ? ' · ' + oc + ' online' : ''}`;
+  _retryIfGivenUp() {
+    if (this._el.conn.dataset.state === 'offline') this._retryNow();
   }
 
-  _syncEditButton() {
-    const header = this.container.querySelector('.room-header');
-    if (!header) return;
+  _setConn(state, { restored = false } = {}) {
+    const el = this._el.conn;
+    if (!el) return;
+    clearTimeout(this._connFlashTimer);
+    el.dataset.state = state;
+    el.classList.remove('is-restored');
+    const label = el.querySelector('.conn-label');
+    const text = {
+      connecting:   'Connecting…',
+      live:         'Live',
+      reconnecting: 'Reconnecting…',
+      offline:      'Offline · <button type="button" class="conn-retry">Retry</button>',
+      denied:       'Can\'t connect — check your membership',
+    }[state];
 
-    const existing = header.querySelector('#rp-edit');
-
-    if (!this.room.is_creator) {
-      existing?.remove();
-      return;
+    if (state === 'live' && restored) {
+      void el.offsetWidth;
+      el.classList.add('is-restored');
+      label.textContent = 'Back online';
+      this._connFlashTimer = setTimeout(() => {
+        el.classList.remove('is-restored');
+        label.textContent = 'Live';
+      }, 1800);
+    } else {
+      label.innerHTML = text;
     }
-
-    if (existing) return; // already present
-
-    const btn = document.createElement('button');
-    btn.className = 'btn-icon';
-    btn.id        = 'rp-edit';
-    btn.title     = 'Edit room';
-    btn.innerHTML = EDIT_SVG;
-    btn.addEventListener('click', () => this._openEditModal());
-
-    // Insert before the delete/leave button
-    const actionBtn = header.querySelector('#rp-delete') || header.querySelector('#rp-leave');
-    if (actionBtn) actionBtn.before(btn);
-    else header.appendChild(btn);
   }
 
-  // ── Messaging ─────────────────────────────────────────────────────────────
+  // ── Messages ────────────────────────────────────────────────────────────
 
-  _sendText() {
-    if (!this.wsReady) return;
-    const content = this._el.input.value.trim();
-    if (!content) return;
+  _sendText(content) {
+    if (!this.wsReady) return false;
     this.ws.send(JSON.stringify({ type: 'text', content }));
-    this._el.input.value = '';
+    return true;
   }
 
-  async _uploadImage(file) {
-    this._enableInput(false);
-    showToast('Uploading…');
-
-    const form = new FormData();
-    form.append('file', file);
-    form.append('message_type', 'image');
-
-    const res = await apiFetch(`/api/rooms/${this.room.slug}/upload/`, {
-      method: 'POST',
-      body:   form,
-    });
-    this._enableInput(true);
-
-    if (!res.ok) { showToast('Upload failed.', 'error'); return; }
-    const msg = await res.json();
-
-    this._appendMessage(msg, true);
-
-    if (this.wsReady) {
-      this.ws.send(JSON.stringify({
-        type:      'image',
-        id:        msg.id,
-        file_url:  msg.file_url,
-        timestamp: msg.timestamp,
-      }));
-    } else {
-      showToast('Connection lost — others may not see this image.', 'error');
-    }
+  _onChatMessage(msg) {
+    if (this._historyReady) this.messages.append(msg, { live: true });
+    else this._pending.push(msg);
+    RoomList.updatePreview(this.room.slug, msg);
+    this._markSeen();
   }
-
-  async _uploadVoice(file) {
-    this._enableInput(false);
-    showToast('Uploading…');
-
-    const form = new FormData();
-    form.append('file', file);
-    form.append('message_type', 'voice');
-
-    const res = await apiFetch(`/api/rooms/${this.room.slug}/upload/`, {
-      method: 'POST',
-      body:   form,
-    });
-    this._enableInput(true);
-
-    if (!res.ok) { showToast('Upload failed.', 'error'); return; }
-    const msg = await res.json();
-
-    this._appendMessage(msg, true);
-
-    if (this.wsReady) {
-      this.ws.send(JSON.stringify({
-        type:      'voice',
-        id:        msg.id,
-        file_url:  msg.file_url,
-        timestamp: msg.timestamp,
-      }));
-    } else {
-      showToast('Connection lost — others may not see this voice note.', 'error');
-    }
-  }
-
-  // ── Leave / delete ────────────────────────────────────────────────────────
-
-  async _leaveRoom() {
-    if (!confirm(`Leave "${this.room.name}"?`)) return;
-    const res = await apiFetch(`/api/rooms/${this.room.slug}/leave/`, { method: 'POST' });
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({}));
-      showToast(d.error || 'Could not leave room.', 'error');
-      return;
-    }
-    this.destroy();
-    showToast('You left the room.');
-    _activeSlug = null;
-    await loadDashboard();
-    showEmptyPanel();
-    history.pushState({}, '', '/dashboard/');
-  }
-
-  async _deleteRoom() {
-    if (!confirm(`Delete "${this.room.name}"? This cannot be undone.`)) return;
-    const res = await apiFetch(`/api/rooms/${this.room.slug}/delete/`, { method: 'DELETE' });
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({}));
-      showToast(d.error || 'Could not delete room.', 'error');
-      return;
-    }
-    this.destroy();
-    showToast(`"${this.room.name}" was deleted.`);
-    _activeSlug = null;
-    await loadDashboard();
-    showEmptyPanel();
-    history.pushState({}, '', '/dashboard/');
-  }
-
-  // ── Edit room ─────────────────────────────────────────────────────────────
-
-  _openEditModal() {
-    const existing = document.getElementById('rp-edit-modal-overlay');
-    if (existing) existing.remove();
-
-    const overlay = document.createElement('div');
-    overlay.id = 'rp-edit-modal-overlay';
-    overlay.className = 'modal-overlay open';
-    overlay.innerHTML = `
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rp-edit-title">
-        <div class="modal-header">
-          <span class="modal-title" id="rp-edit-title">Edit Room</span>
-          <button class="modal-close" id="rp-edit-close" aria-label="Close">&#x2715;</button>
-        </div>
-        <form id="rp-edit-form">
-          <div class="modal-body">
-            <div id="rp-edit-error" class="form-error"></div>
-            <div class="form-group">
-              <label class="form-label" for="rp-edit-name">Room Name</label>
-              <input class="form-input" type="text" id="rp-edit-name"
-                     value="${escHtml(this.room.name)}" maxlength="100" required>
-            </div>
-            <div class="form-group">
-              <label class="form-label" for="rp-edit-desc">
-                Description <span style="color:var(--text-muted)">(optional)</span>
-              </label>
-              <textarea class="form-input" id="rp-edit-desc"
-                        rows="2">${escHtml(this.room.description || '')}</textarea>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-ghost" id="rp-edit-cancel">Cancel</button>
-            <button type="submit" class="btn btn-primary" id="rp-edit-submit">Save</button>
-          </div>
-        </form>
-      </div>`;
-
-    document.body.appendChild(overlay);
-
-    const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
-    const onKey = (e) => { if (e.key === 'Escape') close(); };
-    document.addEventListener('keydown', onKey);
-
-    overlay.addEventListener('click',                    (e) => { if (e.target === overlay) close(); });
-    document.getElementById('rp-edit-close').addEventListener('click', close);
-    document.getElementById('rp-edit-cancel').addEventListener('click', close);
-    document.getElementById('rp-edit-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      this._submitEdit(close);
-    });
-
-    document.getElementById('rp-edit-name').focus();
-  }
-
-  async _submitEdit(closeModal) {
-    const nameInput = document.getElementById('rp-edit-name');
-    const descInput = document.getElementById('rp-edit-desc');
-    const errorEl   = document.getElementById('rp-edit-error');
-    const submitBtn = document.getElementById('rp-edit-submit');
-
-    const name        = nameInput.value.trim();
-    const description = descInput.value.trim();
-
-    errorEl.textContent = '';
-    errorEl.classList.remove('visible');
-
-    if (!name) {
-      errorEl.textContent = 'Room name is required.';
-      errorEl.classList.add('visible');
-      nameInput.focus();
-      return;
-    }
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Saving…';
-
-    const res = await apiFetch(`/api/rooms/${this.room.slug}/update/`, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ name, description }),
-    });
-
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Save';
-
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({}));
-      errorEl.textContent = d.error || 'Could not save changes.';
-      errorEl.classList.add('visible');
-      return;
-    }
-
-    const updated = await res.json();
-    this.room.name        = updated.name;
-    this.room.description = updated.description;
-
-    // Update header
-    const nameEl = this.container.querySelector('.room-header-name');
-    if (nameEl) nameEl.textContent = updated.name;
-
-    // Update sidebar
-    const sidebarItem = document.querySelector(`.room-item[data-slug="${updated.slug}"] .room-name`);
-    if (sidebarItem) sidebarItem.textContent = updated.name;
-
-    closeModal();
-    showToast('Room updated.');
-  }
-
-  // ── Render messages ───────────────────────────────────────────────────────
-
-  _appendMessage(data, smooth) {
-    if (data.id && this._renderedIds.has(data.id)) return;
-    if (data.id) this._renderedIds.add(data.id);
-    const user  = getUser();
-    const isOwn = user && (String(data.sender_id) === String(user.id) || data.username === user.username);
-    const wasAtBottom = this._isAtBottom();
-
-    const row = document.createElement('div');
-    row.className = 'message-row ' + (isOwn ? 'own' : 'other');
-
-    // Bubble content
-    let bubbleContent = '';
-    if (data.message_type === 'voice') {
-      bubbleContent = `<audio controls src="${escHtml(data.file_url || '')}"></audio>`;
-    } else if (data.message_type === 'image') {
-      const src = escHtml(data.file_url || '');
-      bubbleContent = `<img src="${src}" alt="image" loading="lazy" data-lightbox-src="${src}">`;
-    } else {
-      bubbleContent = escHtml(data.content || '');
-    }
-
-    // Avatar
-    const avatarUrl  = isOwn ? (user.avatar_url || null) : (data.avatar_url || null);
-    const avatarName = isOwn ? (user.display_name || user.username) : (data.display_name || data.username);
-    const initial    = (avatarName || '?')[0].toUpperCase();
-    const color      = _avatarColor(avatarName);
-    const inner      = avatarUrl ? `<img src="${escHtml(avatarUrl)}" alt="">` : initial;
-
-    let avatarHtml;
-    if (isOwn) {
-      avatarHtml = `<span class="msg-avatar clickable"
-                         style="background:${color}"
-                         data-own="true"
-                         role="button" tabindex="0"
-                         title="Your profile"
-                         aria-label="View your profile">${inner}</span>`;
-    } else {
-      avatarHtml = `<span class="msg-avatar clickable"
-                         style="background:${color}"
-                         data-username="${escHtml(data.username || '')}"
-                         data-display-name="${escHtml(data.display_name || data.username || '')}"
-                         data-avatar-url="${escHtml(avatarUrl || '')}"
-                         data-color="${color}"
-                         role="button"
-                         tabindex="0"
-                         aria-label="View ${escHtml(avatarName)} profile">${inner}</span>`;
-    }
-
-    row.innerHTML = `
-      ${avatarHtml}
-      <div class="msg-body">
-        ${!isOwn ? `<div class="message-sender">${escHtml(data.display_name || data.username)}</div>` : ''}
-        <div class="message-bubble${data.message_type === 'image' ? ' media' : ''}">${bubbleContent}</div>
-        <div class="message-time">${relativeTime(data.timestamp)}</div>
-      </div>`;
-
-    this._el.chat.appendChild(row);
-    if (wasAtBottom || !this._userScrolled) this._scrollToBottom(smooth);
-    if (smooth) this._markSeen();
-  }
-
-  _appendSystem(text) {
-    const el = document.createElement('div');
-    el.className = 'system-message';
-    el.textContent = text;
-    this._el.chat.appendChild(el);
-    if (!this._userScrolled) this._scrollToBottom(true);
-  }
-
-  _openLightbox(src) {
-    const overlay = document.createElement('div');
-    overlay.className = 'img-lightbox';
-    overlay.innerHTML = `
-      <button class="img-lightbox-close" aria-label="Close">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-             stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-      <img src="${escHtml(src)}" alt="image">
-    `;
-    document.body.appendChild(overlay);
-
-    const close = () => {
-      overlay.remove();
-      document.removeEventListener('keydown', onKey);
-    };
-    const onKey = (e) => { if (e.key === 'Escape') close(); };
-
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-    overlay.querySelector('.img-lightbox-close').addEventListener('click', close);
-    document.addEventListener('keydown', onKey);
-  }
-
-  // ── Helpers ───────────────────────────────────────────────────────────────
 
   _markSeen() {
     clearTimeout(this._markSeenTimer);
@@ -680,243 +379,326 @@ class RoomPanel {
     }, 2000);
   }
 
-  _enableInput(on) {
-    this._el.input.disabled    = !on;
-    this._el.send.disabled     = !on;
-    this._el.imgBtn.disabled   = !on;
-    this._el.voiceBtn.disabled = !on;
+  // ── Presence ────────────────────────────────────────────────────────────
+
+  _onPresence(msg) {
+    const isMe = msg.username === this.me.username;
+    const entry = { display_name: msg.display_name || msg.username };
+
+    if (msg.event === 'here') {
+      // Roll-call reply from someone already in the room
+      if (!isMe) this.online.set(msg.username, entry);
+    } else if (msg.event === 'join') {
+      this.online.set(msg.username, entry);
+      if (!isMe) {
+        this._answerRollCall();
+        if (this._historyReady) this.messages.presence({ ...msg, avatar_url: this.members.get(msg.username)?.avatar_url });
+      }
+    } else {
+      // 'leave'. With two tabs open, one closing doesn't mean you left.
+      if (isMe) return;
+      this.online.delete(msg.username);
+      if (this._historyReady) this.messages.presence({ ...msg, avatar_url: this.members.get(msg.username)?.avatar_url });
+    }
+    this._renderPresence();
+    this._updateMemberDot(msg.username, this.online.has(msg.username));
   }
 
-  _setStatus(text, type) {
-    const el = this._el.status;
-    if (!el) return;
-    if (!text) { el.className = 'ws-status hidden'; return; }
-    el.className   = 'ws-status ' + type;
-    el.textContent = text;
+  // Someone just arrived: tell them we're here. Throttled so a burst of
+  // joins doesn't trigger a burst of replies.
+  _answerRollCall() {
+    const now = Date.now();
+    if (!this.wsReady || now - this._lastRollCall < 1500) return;
+    this._lastRollCall = now;
+    this.ws.send(JSON.stringify({ type: 'here' }));
   }
 
-  _isAtBottom() {
-    const c = this._el.chat;
-    return c.scrollHeight - c.scrollTop - c.clientHeight < 80;
-  }
+  _renderPresence() {
+    const others = [...this.online.entries()].filter(([u]) => u !== this.me.username);
+    const shown  = others.slice(0, 4);
+    const box    = this._el.avatars;
 
-  _scrollToBottom(smooth) {
-    this._el.chat.scrollTo({
-      top:      this._el.chat.scrollHeight,
-      behavior: smooth ? 'smooth' : 'instant',
+    // Diff the stack so arrivals pop in and departures pop out
+    const keep = new Set(shown.map(([u]) => u));
+    box.querySelectorAll('.avatar[data-user]').forEach((av) => {
+      if (keep.has(av.dataset.user) || av.classList.contains('is-leaving')) return;
+      av.classList.add('is-leaving');
+      setTimeout(() => av.remove(), reducedMotion() ? 0 : 150);
     });
+    shown.forEach(([username, p]) => {
+      if (box.querySelector(`.avatar[data-user="${CSS.escape(username)}"]:not(.is-leaving)`)) return;
+      const m = this.members.get(username);
+      box.insertAdjacentHTML('beforeend', avatarHtml({ name: p.display_name, url: m?.avatar_url, size: 'sm', cls: 'is-entering' }));
+      box.lastElementChild.dataset.user = username;
+    });
+
+    const n = others.length;
+    this._el.presence.classList.toggle('is-alone', n === 0);
+    this._el.presenceTx.textContent = n === 0 ? 'Just you' : `${n} here`;
+    const names = others.map(([, p]) => p.display_name);
+    this._el.presence.setAttribute('aria-label', n === 0
+      ? 'Only you are here right now. See room details'
+      : `${names.join(', ')} ${n === 1 ? 'is' : 'are'} here right now. See room details`);
+
+    const onlineEl = document.getElementById('rp-members-online');
+    if (onlineEl) onlineEl.textContent = this.online.size ? `${this.online.size} online` : '';
   }
 
-  _openProfileModal(data, isOwn) {
-    this._closeProfileModal();
-
-    const color   = _avatarColor(data.display_name || data.username);
-    const initial = (data.display_name || data.username || '?')[0].toUpperCase();
-    const inner   = data.avatar_url
-      ? `<img src="${escHtml(data.avatar_url)}" alt="">`
-      : initial;
-
-    const overlay = document.createElement('div');
-    overlay.className = 'profile-modal-overlay';
-
-    const CLOSE_SVG = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-    </svg>`;
-
-    overlay.innerHTML = `
-      <div class="profile-modal" role="dialog" aria-modal="true">
-        <button class="profile-modal-close" aria-label="Close">${CLOSE_SVG}</button>
-        <div class="profile-modal-avatar" style="background:${color}">${inner}</div>
-        <div class="profile-modal-name">${escHtml(data.display_name || data.username)}</div>
-        <div class="profile-modal-username">@${escHtml(data.username || '')}</div>
-        <div id="pm-body"></div>
-        ${isOwn ? `
-          <div class="profile-modal-actions">
-            <a href="/profile/" class="btn btn-ghost btn-full" style="font-size:13px;height:34px">
-              Edit Profile
-            </a>
-          </div>` : ''}
-      </div>`;
-
-    document.body.appendChild(overlay);
-    this._profileModalEl = overlay;
-
-    overlay.querySelector('.profile-modal-close').addEventListener('click', () => this._closeProfileModal());
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) this._closeProfileModal(); });
-    this._escHandler = (e) => { if (e.key === 'Escape') this._closeProfileModal(); };
-    document.addEventListener('keydown', this._escHandler);
-  }
-
-  _fillProfileBody(data) {
-    const body = document.getElementById('pm-body');
-    if (!body) return;
-    const joined = data.date_joined
-      ? new Date(data.date_joined).toLocaleDateString(undefined, { year: 'numeric', month: 'long' })
-      : null;
-    let html = '';
-    if (data.bio) {
-      html += `<div class="profile-modal-divider"></div>
-               <p class="profile-modal-bio">${escHtml(data.bio)}</p>`;
-    }
-    if (joined) {
-      html += `<div class="profile-modal-divider"></div>
-               <p class="profile-modal-meta">Member since ${escHtml(joined)}</p>`;
-    }
-    body.innerHTML = html;
-  }
-
-  _closeProfileModal() {
-    this._profileModalEl?.remove();
-    this._profileModalEl = null;
-    if (this._escHandler) {
-      document.removeEventListener('keydown', this._escHandler);
-      this._escHandler = null;
-    }
-  }
-
-  // ── Members panel ─────────────────────────────────────────────────────────
-
-  _toggleMembers() {
-    document.getElementById('rp-body')?.classList.toggle('members-open');
-  }
-
-  _closeMembersDrawer() {
-    document.getElementById('rp-body')?.classList.remove('members-open');
-  }
+  // ── Members ─────────────────────────────────────────────────────────────
 
   async _loadMembers() {
     if (this._membersLoading || !this._membersHasMore) return;
     this._membersLoading = true;
 
-    const list = document.getElementById('rp-members-list');
-    if (!list) { this._membersLoading = false; return; }
-
-    const res = await apiFetch(
-      `/api/rooms/${this.room.slug}/members/?limit=20&offset=${this._membersOffset}`
-    );
+    const res = await apiFetch(`/api/rooms/${this.room.slug}/members/?limit=20&offset=${this._membersOffset}`);
     this._membersLoading = false;
-    if (!res.ok) return;
+    if (this._destroyed || !res.ok) return;
 
     const data = await res.json();
-
-    // First page: clear the spinner
+    const list = document.getElementById('rp-members-list');
+    if (!list) return;
     if (this._membersOffset === 0) list.innerHTML = '';
+    document.getElementById('rp-members-sentinel')?.remove();
 
-    // Remove sentinel before appending so order is preserved
-    const oldSentinel = document.getElementById('rp-members-sentinel');
-    oldSentinel?.remove();
-
-    data.members.forEach(m => list.appendChild(this._buildMemberItem(m)));
-
+    data.members.forEach((m) => {
+      this.members.set(m.username, m);
+      list.appendChild(this._memberItem(m));
+    });
     this._membersOffset += data.members.length;
     this._membersHasMore = data.has_more;
+    document.getElementById('rp-members-total').textContent = `· ${data.total}`;
 
-    const header = document.getElementById('rp-members-header');
-    if (header) header.textContent = `MEMBERS · ${data.total}`;
+    // Members load after presence may have arrived: give avatars their photos.
+    this._el.avatars.querySelectorAll('.avatar[data-user]').forEach((av) => {
+      const m = this.members.get(av.dataset.user);
+      if (m?.avatar_url && !av.querySelector('img')) av.innerHTML = `<img src="${escHtml(m.avatar_url)}" alt="">`;
+    });
 
     if (this._membersHasMore) {
       const sentinel = document.createElement('div');
       sentinel.id = 'rp-members-sentinel';
-      sentinel.style.cssText = 'height:1px;flex-shrink:0';
+      sentinel.style.height = '1px';
       list.appendChild(sentinel);
-
       if (!this._membersObserver) {
         this._membersObserver = new IntersectionObserver(
           (entries) => { if (entries[0].isIntersecting) this._loadMembers(); },
-          { root: list, threshold: 0 }
+          { root: this._el.drawerBody, rootMargin: '120px' },
         );
       }
       this._membersObserver.observe(sentinel);
     }
   }
 
-  _buildMemberItem(m) {
-    const isOnline = this.onlineUsers.has(m.username);
-    const color    = _avatarColor(m.display_name || m.username);
-    const initial  = (m.display_name || m.username || '?')[0].toUpperCase();
-    const inner    = m.avatar_url ? `<img src="${escHtml(m.avatar_url)}" alt="">` : initial;
-
-    const item = document.createElement('div');
-    item.className = `member-item ${isOnline ? 'online' : 'offline'}`;
-    item.dataset.username = m.username;
+  _memberItem(m) {
+    const name = m.display_name || m.username;
     const isCreator = this.room.creator_username && m.username === this.room.creator_username;
-    item.innerHTML = `
-      <div class="member-avatar-wrap">
-        <div class="member-av" style="background:${color}">${inner}</div>
-        <span class="member-status-dot ${isOnline ? 'online' : 'offline'}"></span>
-      </div>
-      <div class="member-info">
-        <div class="member-name">
-          <span class="member-name-text">${escHtml(m.display_name || m.username)}</span>
-          ${isCreator ? '<span class="creator-tag">Creator</span>' : ''}
-        </div>
-        <div class="member-username">@${escHtml(m.username)}</div>
-      </div>`;
-
-    item.addEventListener('click', () => this._fetchAndShowProfile({
-      username:     m.username,
-      display_name: m.display_name,
-      avatar_url:   m.avatar_url,
-    }));
-    return item;
+    const isMe = m.username === this.me.username;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'member' + (this.online.has(m.username) ? ' is-online' : '');
+    btn.dataset.username = m.username;
+    btn.setAttribute('role', 'listitem');
+    btn.innerHTML = `
+      <span class="member-avatar">${avatarHtml({ name, url: m.avatar_url, size: 'md' })}<span class="member-dot" aria-hidden="true"></span></span>
+      <span class="member-text">
+        <span class="member-name truncate">${escHtml(name)}${isMe ? ' <span style="color:var(--text-3)">(you)</span>' : ''}</span>
+        <span class="member-handle truncate">@${escHtml(m.username)}</span>
+      </span>
+      ${isCreator ? '<span class="member-role">Creator</span>' : ''}
+      <span class="sr-only">${this.online.has(m.username) ? 'online' : 'offline'}</span>`;
+    return btn;
   }
 
   _updateMemberDot(username, isOnline) {
-    const item = document.querySelector(`#rp-members-list .member-item[data-username="${CSS.escape(username)}"]`);
+    const item = this._el.drawer.querySelector(`.member[data-username="${CSS.escape(username)}"]`);
     if (!item) return;
-    item.classList.toggle('online',  isOnline);
-    item.classList.toggle('offline', !isOnline);
-    const dot = item.querySelector('.member-status-dot');
-    if (dot) dot.className = `member-status-dot ${isOnline ? 'online' : 'offline'}`;
+    item.classList.toggle('is-online', isOnline);
+    const sr = item.querySelector('.sr-only');
+    if (sr) sr.textContent = isOnline ? 'online' : 'offline';
   }
 
-  _openOwnProfileModal() {
-    const user = getUser();
-    if (!user) return;
-    this._openProfileModal(user, true);
-    this._fillProfileBody(user);
+  // ── Profiles ────────────────────────────────────────────────────────────
+
+  async _showProfile(preload) {
+    this._profileLayer?.close();
+    const isOwn = preload.username === this.me.username;
+    const base  = isOwn ? { ...this.me } : preload;
+    const name  = base.display_name || base.username;
+    const id    = 'pc-' + Math.random().toString(36).slice(2, 8);
+
+    const { modal, layer } = createModal({
+      size: 'sm',
+      cls: 'profile-card',
+      labelledBy: id,
+      onClose: () => { if (this._profileLayer === layer) this._profileLayer = null; },
+      html: `
+        <button type="button" class="icon-btn modal-close" data-close aria-label="Close">${icon('close', 18)}</button>
+        <div data-avatar>${avatarHtml({ name, url: base.avatar_url, size: 'xl' })}</div>
+        <h2 class="profile-card-name" id="${id}">${escHtml(name)}</h2>
+        <p class="profile-card-handle">@${escHtml(base.username || '')}</p>
+        ${this.online.has(base.username) ? '<p class="profile-card-online"><span class="live-dot"></span>Here now</p>' : ''}
+        <div data-body>${isOwn ? '' : '<div class="spinner" style="margin:24px auto 0"></div>'}</div>
+        ${isOwn ? '<a href="/profile/" class="btn btn-secondary btn-full">Edit profile</a>' : ''}`,
+    });
+    this._profileLayer = layer;
+    modal.querySelector('[data-close]').addEventListener('click', () => layer.close());
+
+    const fill = (p) => {
+      const joined = p.date_joined
+        ? new Date(p.date_joined).toLocaleDateString([], { year: 'numeric', month: 'long' })
+        : '';
+      modal.querySelector('[data-body]').innerHTML = `
+        ${p.bio ? `<p class="profile-card-bio">${escHtml(p.bio)}</p>` : ''}
+        ${joined ? `<p class="profile-card-meta">Member since ${escHtml(joined)}</p>` : ''}`;
+    };
+
+    if (isOwn) { fill(this.me); return; }
+
+    const res = await apiFetch(`/api/auth/users/${encodeURIComponent(preload.username)}/`);
+    if (this._profileLayer !== layer) return;
+    if (!res.ok) { modal.querySelector('[data-body]').innerHTML = ''; return; }
+    const p = await res.json();
+    const pname = p.display_name || p.username;
+    modal.querySelector('[data-avatar]').innerHTML = avatarHtml({ name: pname, url: p.avatar_url, size: 'xl' });
+    modal.querySelector('.profile-card-name').textContent = pname;
+    fill(p);
   }
 
-  async _fetchAndShowProfile(preload) {
-    this._openProfileModal(preload, false);
-    const body = document.getElementById('pm-body');
-    if (body) body.innerHTML = `
-      <div class="profile-modal-divider"></div>
-      <div class="loading-state" style="flex:none;padding:4px 0">
-        <div class="spinner" style="width:18px;height:18px;border-width:2px"></div>
-      </div>`;
+  // ── Edit / leave / delete ───────────────────────────────────────────────
 
-    const res = await apiFetch(`/api/auth/users/${preload.username}/`);
-    if (!this._profileModalEl) return;
-    if (!res.ok) {
-      if (body) body.innerHTML = '';
+  _openEditModal() {
+    const { overlay, modal, layer } = createModal({
+      labelledBy: 'rp-edit-title',
+      initialFocus: '#rp-edit-name',
+      html: `
+        <div class="modal-head">
+          <h2 class="modal-title" id="rp-edit-title">Edit room</h2>
+          <button type="button" class="icon-btn modal-close" data-close aria-label="Close">${icon('close', 18)}</button>
+        </div>
+        <form id="rp-edit-form" novalidate>
+          <div class="modal-body">
+            <div class="form-error" id="rp-edit-error" role="alert"></div>
+            <div class="field">
+              <label class="field-label" for="rp-edit-name">Name</label>
+              <input class="input" type="text" id="rp-edit-name" value="${escHtml(this.room.name)}" maxlength="100" autocomplete="off" required>
+            </div>
+            <div class="field">
+              <label class="field-label" for="rp-edit-desc">Description <span class="field-hint">Optional</span></label>
+              <textarea class="input" id="rp-edit-desc" rows="3">${escHtml(this.room.description || '')}</textarea>
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button type="button" class="btn btn-ghost" data-close>Cancel</button>
+            <button type="submit" class="btn btn-primary" id="rp-edit-submit">Save</button>
+          </div>
+        </form>`,
+    });
+    overlay.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => layer.close()));
+    modal.querySelector('form').addEventListener('submit', (e) => { e.preventDefault(); this._submitEdit(modal, layer); });
+  }
+
+  async _submitEdit(modal, layer) {
+    const nameInput = modal.querySelector('#rp-edit-name');
+    const errorEl   = modal.querySelector('#rp-edit-error');
+    const submitBtn = modal.querySelector('#rp-edit-submit');
+    const name        = nameInput.value.trim();
+    const description = modal.querySelector('#rp-edit-desc').value.trim();
+
+    errorEl.classList.remove('is-visible');
+    nameInput.removeAttribute('aria-invalid');
+    if (!name) {
+      errorEl.textContent = 'Room name is required.';
+      errorEl.classList.add('is-visible');
+      nameInput.setAttribute('aria-invalid', 'true');
+      nameInput.focus();
       return;
     }
-    const profile = await res.json();
 
-    // Update header in case display_name / avatar differ from message data
-    const modal = this._profileModalEl.querySelector('.profile-modal');
-    if (!modal) return;
-    const color   = _avatarColor(profile.display_name || profile.username);
-    const initial = (profile.display_name || profile.username || '?')[0].toUpperCase();
-    const av = modal.querySelector('.profile-modal-avatar');
-    if (av) {
-      av.style.background = color;
-      av.innerHTML = profile.avatar_url
-        ? `<img src="${escHtml(profile.avatar_url)}" alt="">`
-        : initial;
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving…';
+    const res = await apiFetch(`/api/rooms/${this.room.slug}/update/`, {
+      method: 'PATCH',
+      body:   JSON.stringify({ name, description }),
+    });
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Save';
+
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      errorEl.textContent = d.error || 'Could not save changes.';
+      errorEl.classList.add('is-visible');
+      return;
     }
-    modal.querySelector('.profile-modal-name').textContent    = profile.display_name || profile.username;
-    modal.querySelector('.profile-modal-username').textContent = '@' + profile.username;
-    this._fillProfileBody(profile);
+
+    const updated = await res.json();
+    this.room.name        = updated.name;
+    this.room.description = updated.description;
+    this._el.title.textContent = updated.name;
+    this._renderDrawerRoom();
+    this.messages.updateIntro(this.room);
+    RoomList.rename(this.room.slug, updated.name);
+    layer.close();
+    showToast('Room updated.');
   }
 
+  async _leaveRoom() {
+    const ok = await confirmDialog({
+      title: `Leave ${this.room.name}?`,
+      body: 'You\'ll stop receiving its messages. You can rejoin with an invite link.',
+      confirmLabel: 'Leave room',
+      danger: true,
+    });
+    if (!ok) return;
+    const res = await apiFetch(`/api/rooms/${this.room.slug}/leave/`, { method: 'POST' });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      showToast(d.error || 'Could not leave the room.', 'error');
+      return;
+    }
+    const name = this.room.name;
+    this._drawer?.close();
+    closeRoom();
+    await RoomList.load();
+    showEmptyPanel();
+    showToast(`You left ${name}.`);
+  }
+
+  async _deleteRoom() {
+    const ok = await confirmDialog({
+      title: `Delete ${this.room.name}?`,
+      body: 'The room and all of its messages will be removed for everyone. This can\'t be undone.',
+      confirmLabel: 'Delete room',
+      danger: true,
+    });
+    if (!ok) return;
+    const res = await apiFetch(`/api/rooms/${this.room.slug}/delete/`, { method: 'DELETE' });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      showToast(d.error || 'Could not delete the room.', 'error');
+      return;
+    }
+    const name = this.room.name;
+    this._drawer?.close();
+    closeRoom();
+    await RoomList.load();
+    showEmptyPanel();
+    showToast(`${name} was deleted.`);
+  }
+
+  // ── Teardown ────────────────────────────────────────────────────────────
+
   destroy() {
-    this._closeProfileModal();
-    if (this._markSeenTimer) clearTimeout(this._markSeenTimer);
-    if (this._reconnectTimer) clearTimeout(this._reconnectTimer);
-    if (this._membersObserver) { this._membersObserver.disconnect(); this._membersObserver = null; }
+    this._destroyed = true;
+    this._profileLayer?.close();
+    this._drawer?.close();
+    clearTimeout(this._markSeenTimer);
+    clearTimeout(this._reconnectTimer);
+    clearTimeout(this._connFlashTimer);
+    this._membersObserver?.disconnect();
+    window.removeEventListener('online', this._onOnline);
+    document.removeEventListener('visibilitychange', this._onVisibility);
+    this.messages?.destroy();
+    this.composer?.destroy();
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.close();

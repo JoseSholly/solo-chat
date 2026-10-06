@@ -64,6 +64,42 @@ async function apiFetch(url, options = {}, _retry = true) {
   return res;
 }
 
+// Multipart upload with real progress. fetch() can't report upload progress,
+// so this uses XHR but mirrors apiFetch's refresh-and-retry on 401.
+// Resolves (never rejects) with { ok, status, data, aborted }.
+function apiUpload(url, formData, { method = 'POST', onProgress, signal } = {}) {
+  const send = (retry) => new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url);
+    const token = getAccessToken();
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+    if (onProgress) {
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+    }
+
+    xhr.onload = async () => {
+      if (xhr.status === 401 && retry) {
+        if (await _tryRefresh()) { resolve(send(false)); return; }
+        clearSession();
+        window.location.href = `/login/?next=${encodeURIComponent(window.location.pathname)}`;
+      }
+      let data = null;
+      try { data = JSON.parse(xhr.responseText); } catch { /* empty or non-JSON body */ }
+      resolve({ ok: xhr.status >= 200 && xhr.status < 300, status: xhr.status, data, aborted: false });
+    };
+    xhr.onerror = () => resolve({ ok: false, status: 0, data: null, aborted: false });
+    xhr.onabort = () => resolve({ ok: false, status: 0, data: null, aborted: true });
+
+    if (signal) {
+      if (signal.aborted) { xhr.abort(); return; }
+      signal.addEventListener('abort', () => xhr.abort(), { once: true });
+    }
+    xhr.send(formData);
+  });
+  return send(true);
+}
+
 // ── Pure utilities (no DOM) ──────────────────────────────────────────────────
 
 function escHtml(s) {
@@ -87,7 +123,13 @@ function showToast(msg, type = 'success') {
   if (!container) return;
   const el = document.createElement('div');
   el.className   = 'toast ' + type;
+  el.setAttribute('role', type === 'error' ? 'alert' : 'status');
   el.textContent = msg;
   container.appendChild(el);
-  setTimeout(() => el.remove(), 3500);
+  // Keep at most three on screen
+  while (container.children.length > 3) container.firstElementChild.remove();
+  setTimeout(() => {
+    el.classList.add('is-leaving');
+    setTimeout(() => el.remove(), 220);
+  }, type === 'error' ? 4500 : 3000);
 }

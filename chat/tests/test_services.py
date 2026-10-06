@@ -60,9 +60,7 @@ def test_create_media_rejects_invalid_type(captured_events, user, room):
 # ---------------------------------------------------------------------------
 
 
-def test_create_room_creates_membership_and_emits_room_created(
-    captured_events, user
-):
+def test_create_room_creates_membership_and_emits_room_created(captured_events, user):
     room = RoomService.create(user, "team-x", description="the x-team")
 
     assert Room.objects.filter(pk=room.pk).exists()
@@ -79,8 +77,6 @@ def test_create_room_creates_membership_and_emits_room_created(
 def test_create_room_is_atomic_when_membership_fails(user):
     """If the membership write raises, the room row must roll back."""
     from chat.services import room_service as room_service_module
-
-    original_create = RoomMembership.objects.create
 
     def failing_create(*args, **kwargs):
         raise RuntimeError("simulated failure")

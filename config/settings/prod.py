@@ -69,7 +69,7 @@ MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
 
 STORAGES = {
     "default": {
-        "BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage",
+        "BACKEND": "config.settings.cloudinary.storages.MediaAndAudioCloudinaryStorage",
     },
     "staticfiles": {
         "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",

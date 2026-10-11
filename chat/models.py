@@ -4,6 +4,9 @@ from django.conf import settings
 from django.core.validators import FileExtensionValidator
 from django.db import models
 
+IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "gif", "webp"]
+AUDIO_EXTENSIONS = ["mp3", "ogg", "wav", "webm", "m4a"]
+
 
 class Room(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -64,11 +67,7 @@ class Message(models.Model):
         upload_to="uploads/%Y/%m/%d/",
         blank=True,
         null=True,
-        validators=[
-            FileExtensionValidator(
-                ["jpg", "jpeg", "png", "gif", "webp", "mp3", "ogg", "wav"]
-            ),
-        ],
+        validators=[FileExtensionValidator(IMAGE_EXTENSIONS + AUDIO_EXTENSIONS)],
     )
     timestamp = models.DateTimeField(auto_now_add=True)
 

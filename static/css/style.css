@@ -1239,7 +1239,8 @@ textarea.input { height: auto; min-height: 96px; padding: var(--s-3) var(--s-4);
 .composer.is-recording .composer-row { display: none; }
 .rec-status { display: flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-2); }
 .rec-dot    { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); animation: pulse-soft 1.1s var(--ease-in-out) infinite; }
-.rec-time   { min-width: 40px; font-family: var(--font-mono); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.rec-time   { min-width: 84px; white-space: nowrap; font-family: var(--font-mono); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.rec-status.is-ending .rec-time { color: var(--danger); }
 .rec-levels {
   flex: 1;
   height: 28px;

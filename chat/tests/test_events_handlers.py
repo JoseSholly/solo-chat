@@ -73,18 +73,17 @@ def test_broadcast_message_to_room_uses_file_url_for_media(mock_channel_layer):
     assert payload["message_type"] == "image"
     assert payload["content"] == ""
     assert payload["file_url"] == "/media/pic.jpg"
-    assert payload["duration"] is None
 
 
 def test_broadcast_message_to_room_includes_voice_duration(mock_channel_layer):
     event = _sample_message_event(
-        message_type="voice", content=None, file_url="/media/note.webm", duration=4.5
+        message_type="voice", content=None, file_url="/media/n.webm", duration=7.5
     )
 
     broadcast_message_to_room(event)
 
     _, payload = mock_channel_layer[0]
-    assert payload["duration"] == 4.5
+    assert payload["duration"] == 7.5
 
 
 def test_broadcast_message_to_room_noop_without_channel_layer(monkeypatch):

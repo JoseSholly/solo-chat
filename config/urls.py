@@ -5,6 +5,13 @@ from django.conf.urls.static import static
 from django.views.generic import TemplateView
 
 urlpatterns = [
+    path(
+        "sw.js",
+        TemplateView.as_view(
+            template_name="sw.js", content_type="application/javascript"
+        ),
+        name="service-worker",
+    ),
     path("admin/", admin.site.urls),
     # API
     path("api/auth/", include("accounts.urls")),

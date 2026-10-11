@@ -15,7 +15,7 @@ class MessageCreated:
     content: str | None
     file_url: str | None
     timestamp: str  # ISO-8601
-    duration: float | None = None  # seconds; voice notes only
+    duration: float | None = None  # seconds, voice notes only
 
 
 @dataclass(frozen=True)

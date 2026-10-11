@@ -4,7 +4,6 @@ from django.core.exceptions import ValidationError
 
 IMAGE_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
 VOICE_MAX_BYTES = 25 * 1024 * 1024  # 25 MB
-VOICE_MAX_SECONDS = 60 * 60  # generous ceiling; the recorder itself stops at 10 min
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 ALLOWED_AUDIO_TYPES = {
@@ -35,14 +34,12 @@ class MediaService:
             raise ValidationError(f"Unknown message_type: {message_type!r}")
 
     @staticmethod
-    def parse_duration(raw, message_type: str) -> float | None:
-        """Client-reported voice note length in seconds; anything unusable is dropped."""
-        if message_type != "voice" or raw in (None, ""):
-            return None
+    def parse_duration(raw) -> float | None:
+        """Client-reported length in seconds; anything unusable becomes None."""
         try:
             seconds = float(raw)
         except (TypeError, ValueError):
             return None
-        if not math.isfinite(seconds) or not 0 < seconds <= VOICE_MAX_SECONDS:
+        if not math.isfinite(seconds) or seconds <= 0:
             return None
-        return round(seconds, 2)
+        return round(seconds, 1)

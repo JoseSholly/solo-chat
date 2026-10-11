@@ -70,9 +70,7 @@ class MediaUploadView(APIView):
             message_type,
             file,
             sender=sender,
-            duration=MediaService.parse_duration(
-                request.data.get("duration"), message_type
-            ),
+            duration=MediaService.parse_duration(request.data.get("duration")),
         )
         return Response(
             MessageSerializer(message, context={"request": request}).data,
@@ -426,9 +424,7 @@ class AuthenticatedMediaUploadView(APIView):
             message_type,
             file,
             sender=request.user,
-            duration=MediaService.parse_duration(
-                request.data.get("duration"), message_type
-            ),
+            duration=MediaService.parse_duration(request.data.get("duration")),
         )
         return Response(
             MessageSerializer(message, context={"request": request}).data,

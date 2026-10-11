@@ -1239,7 +1239,8 @@ textarea.input { height: auto; min-height: 96px; padding: var(--s-3) var(--s-4);
 .composer.is-recording .composer-row { display: none; }
 .rec-status { display: flex; align-items: center; gap: var(--s-2); padding: 0 var(--s-2); }
 .rec-dot    { width: 8px; height: 8px; border-radius: 50%; background: var(--danger); animation: pulse-soft 1.1s var(--ease-in-out) infinite; }
-.rec-time   { min-width: 40px; font-family: var(--font-mono); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.rec-time   { min-width: 84px; white-space: nowrap; font-family: var(--font-mono); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.rec-status.is-ending .rec-time { color: var(--danger); }
 .rec-levels {
   flex: 1;
   height: 28px;
@@ -1592,8 +1593,8 @@ textarea.input { height: auto; min-height: 96px; padding: var(--s-3) var(--s-4);
 .site-inner   { max-width: var(--max); margin: 0 auto; }
 
 .hero {
-  min-height: 100vh;
-  min-height: 100svh;
+  min-height: min(100vh, 720px);
+  min-height: min(100svh, 720px);
   display: flex; flex-direction: column; justify-content: flex-end;
   padding-top: calc(var(--header-h) + var(--s-12));
   padding-bottom: clamp(48px, 8vh, 96px);
@@ -1789,7 +1790,7 @@ textarea.input { height: auto; min-height: 96px; padding: var(--s-3) var(--s-4);
   .room-head .presence-label-text { display: none; }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 900px), (max-device-width: 820px), (hover: none) and (pointer: coarse) and (max-width: 1200px) {
   .showcase-frame { grid-template-columns: minmax(0, 1fr); }
   .showcase-frame .sidebar { display: none; }
   .principle { grid-template-columns: 48px minmax(0, 1fr); }
@@ -1800,13 +1801,13 @@ textarea.input { height: auto; min-height: 96px; padding: var(--s-3) var(--s-4);
   .step-title { margin-top: var(--s-4); }
 }
 
-@media (max-width: 860px) {
+@media (max-width: 860px), (max-device-width: 820px), (hover: none) and (pointer: coarse) and (max-width: 1200px) {
   .auth { grid-template-columns: minmax(0, 1fr); }
   .auth-aside { display: none; }
 }
 
 /* Mobile: the conversation is the primary view; rooms become a drawer */
-@media (max-width: 768px) {
+@media (max-width: 768px), (max-device-width: 820px), (hover: none) and (pointer: coarse) and (max-width: 1200px) {
   :root { --gutter: 16px; --header-h: 58px; }
 
   .app { position: relative; }
@@ -1865,6 +1866,7 @@ textarea.input { height: auto; min-height: 96px; padding: var(--s-3) var(--s-4);
   .drawer { width: 100vw; border-left: 0; }
 
   .site-nav-links .btn-ghost { display: none; }
+  .hero { min-height: 0; justify-content: flex-start; padding-top: calc(var(--header-h) + var(--s-10)); padding-bottom: var(--s-12); }
   .hero-foot { flex-direction: column; align-items: flex-start; gap: var(--s-6); }
   .showcase-frame { height: 520px; }
   .showcase-caption { flex-direction: column; gap: var(--s-1); }

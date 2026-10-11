@@ -42,7 +42,7 @@ class MessageService:
             username=username,
             message_type=message_type,
             file=file,
-            duration=duration,
+            duration=duration if message_type == Message.MessageType.VOICE else None,
         )
         MessageService._emit_created(message, room)
         return message

@@ -1,6 +1,8 @@
 from unittest.mock import patch
 
 import pytest
+from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import SimpleUploadedFile
 
 from chat.events import LastSeenUpdated, MessageCreated, RoomCreated
 from chat.models import Message, Room, RoomMembership
@@ -55,20 +57,36 @@ def test_create_media_rejects_invalid_type(captured_events, user, room):
     assert Message.objects.count() == 0
 
 
-def test_create_media_stores_duration_and_emits_it(
-    captured_events, user, room, settings, tmp_path
+def test_create_media_voice_persists_and_emits_file_url(
+    captured_events, settings, tmp_path, user, room
 ):
-    from django.core.files.uploadedfile import SimpleUploadedFile
-
     settings.MEDIA_ROOT = tmp_path
-    file = SimpleUploadedFile("note.webm", b"\x1a\x45\xdf\xa3", "audio/webm")
+    file = SimpleUploadedFile("note.webm", b"voice", content_type="audio/webm")
+
     message = MessageService.create_media(
-        room, user.username, "voice", file, sender=user, duration=7.25
+        room, user.username, "voice", file, sender=user, duration=12.3
     )
 
-    message.refresh_from_db()
-    assert message.duration == 7.25
-    assert captured_events[0].duration == 7.25
+    assert message.message_type == "voice"
+    assert message.file.name.endswith(".webm")
+    assert message.duration == 12.3
+    event = captured_events[0]
+    assert event.message_type == "voice"
+    assert event.file_url == message.file.url
+    assert event.duration == 12.3
+
+
+def test_create_media_image_ignores_duration(
+    captured_events, settings, tmp_path, user, room
+):
+    settings.MEDIA_ROOT = tmp_path
+    file = SimpleUploadedFile("pic.png", b"img", content_type="image/png")
+
+    message = MessageService.create_media(
+        room, user.username, "image", file, sender=user, duration=5
+    )
+
+    assert message.duration is None
 
 
 # ---------------------------------------------------------------------------
@@ -76,24 +94,23 @@ def test_create_media_stores_duration_and_emits_it(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    ("raw", "message_type", "expected"),
-    [
-        ("7.256", "voice", 7.26),
-        (12, "voice", 12.0),
-        ("7.2", "image", None),  # only voice notes carry a length
-        (None, "voice", None),
-        ("", "voice", None),
-        ("abc", "voice", None),
-        ("0", "voice", None),
-        ("-3", "voice", None),
-        ("inf", "voice", None),
-        ("nan", "voice", None),
-        ("99999", "voice", None),
-    ],
-)
-def test_parse_duration(raw, message_type, expected):
-    assert MediaService.parse_duration(raw, message_type) == expected
+@pytest.mark.parametrize("content_type", ["audio/webm", "audio/mp4", "audio/ogg"])
+def test_validate_accepts_recorded_voice_formats(content_type):
+    file = SimpleUploadedFile("note", b"voice", content_type=content_type)
+    MediaService.validate(file, "voice")
+
+
+def test_validate_rejects_non_audio_voice_note():
+    file = SimpleUploadedFile("note.png", b"img", content_type="image/png")
+    with pytest.raises(ValidationError):
+        MediaService.validate(file, "voice")
+
+
+def test_validate_rejects_oversized_voice_note():
+    file = SimpleUploadedFile("note.webm", b"voice", content_type="audio/webm")
+    file.size = 25 * 1024 * 1024 + 1
+    with pytest.raises(ValidationError):
+        MediaService.validate(file, "voice")
 
 
 # ---------------------------------------------------------------------------
@@ -147,3 +164,21 @@ def test_get_by_slug_returns_none_for_missing_room():
     import uuid
 
     assert RoomService.get_by_slug(uuid.uuid4()) is None
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("12.34", 12.3),
+        (59.96, 60.0),
+        (None, None),
+        ("", None),
+        ("abc", None),
+        ("0", None),
+        ("-3", None),
+        ("inf", None),
+        ("nan", None),
+    ],
+)
+def test_parse_duration(raw, expected):
+    assert MediaService.parse_duration(raw) == expected

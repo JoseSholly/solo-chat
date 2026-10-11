@@ -21,6 +21,7 @@ def broadcast_message_to_room(event: MessageCreated) -> None:
             "avatar_url": event.sender_avatar_url,
             "content": event.content or "",
             "file_url": event.file_url or "",
+            "duration": event.duration,
             "timestamp": event.timestamp,
         },
     )

@@ -64,14 +64,29 @@ def test_create_media_voice_persists_and_emits_file_url(
     file = SimpleUploadedFile("note.webm", b"voice", content_type="audio/webm")
 
     message = MessageService.create_media(
-        room, user.username, "voice", file, sender=user
+        room, user.username, "voice", file, sender=user, duration=12.3
     )
 
     assert message.message_type == "voice"
     assert message.file.name.endswith(".webm")
+    assert message.duration == 12.3
     event = captured_events[0]
     assert event.message_type == "voice"
     assert event.file_url == message.file.url
+    assert event.duration == 12.3
+
+
+def test_create_media_image_ignores_duration(
+    captured_events, settings, tmp_path, user, room
+):
+    settings.MEDIA_ROOT = tmp_path
+    file = SimpleUploadedFile("pic.png", b"img", content_type="image/png")
+
+    message = MessageService.create_media(
+        room, user.username, "image", file, sender=user, duration=5
+    )
+
+    assert message.duration is None
 
 
 # ---------------------------------------------------------------------------
@@ -149,3 +164,21 @@ def test_get_by_slug_returns_none_for_missing_room():
     import uuid
 
     assert RoomService.get_by_slug(uuid.uuid4()) is None
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("12.34", 12.3),
+        (59.96, 60.0),
+        (None, None),
+        ("", None),
+        ("abc", None),
+        ("0", None),
+        ("-3", None),
+        ("inf", None),
+        ("nan", None),
+    ],
+)
+def test_parse_duration(raw, expected):
+    assert MediaService.parse_duration(raw) == expected

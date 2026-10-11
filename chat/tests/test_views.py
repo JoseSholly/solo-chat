@@ -23,13 +23,25 @@ def _client(user):
 def test_member_can_upload_voice_note(media_root, user, room):
     res = _client(user).post(
         f"/api/rooms/{room.slug}/upload/",
-        {"file": _voice_note(), "message_type": "voice"},
+        {"file": _voice_note(), "message_type": "voice", "duration": "42.0"},
         format="multipart",
     )
 
     assert res.status_code == 201
     assert res.data["message_type"] == "voice"
     assert res.data["file_url"].endswith(".webm")
+    assert res.data["duration"] == 42.0
+
+
+def test_voice_note_without_duration_still_uploads(media_root, user, room):
+    res = _client(user).post(
+        f"/api/rooms/{room.slug}/upload/",
+        {"file": _voice_note(), "message_type": "voice", "duration": "bogus"},
+        format="multipart",
+    )
+
+    assert res.status_code == 201
+    assert res.data["duration"] is None
 
 
 def test_non_member_cannot_upload_voice_note(media_root, other_user, room):

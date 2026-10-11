@@ -69,6 +69,9 @@ class Message(models.Model):
         null=True,
         validators=[FileExtensionValidator(IMAGE_EXTENSIONS + AUDIO_EXTENSIONS)],
     )
+    # Seconds, reported by the recorder. Browsers often leave it out of the
+    # recorded file, so the player falls back to this.
+    duration = models.FloatField(blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:

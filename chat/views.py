@@ -65,7 +65,12 @@ class MediaUploadView(APIView):
 
         sender = request.user if request.user.is_authenticated else None
         message = MessageService.create_media(
-            room, username, message_type, file, sender=sender
+            room,
+            username,
+            message_type,
+            file,
+            sender=sender,
+            duration=MediaService.parse_duration(request.data.get("duration")),
         )
         return Response(
             MessageSerializer(message, context={"request": request}).data,
@@ -414,7 +419,12 @@ class AuthenticatedMediaUploadView(APIView):
             )
 
         message = MessageService.create_media(
-            room, request.user.username, message_type, file, sender=request.user
+            room,
+            request.user.username,
+            message_type,
+            file,
+            sender=request.user,
+            duration=MediaService.parse_duration(request.data.get("duration")),
         )
         return Response(
             MessageSerializer(message, context={"request": request}).data,

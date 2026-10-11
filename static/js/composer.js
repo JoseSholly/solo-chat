@@ -175,7 +175,7 @@ class Composer {
 
   // ── Attachments ────────────────────────────────────────────────────────
 
-  sendFile(file, { label } = {}) {
+  sendFile(file, { label, duration } = {}) {
     const type = file.type.startsWith('image/') ? 'image'
                : file.type.startsWith('audio/') ? 'voice'
                : null;
@@ -185,10 +185,10 @@ class Composer {
       showToast(`${type === 'image' ? 'Images' : 'Voice notes'} can be up to ${max / 1024 / 1024} MB.`, 'error');
       return;
     }
-    this._send(file, type, label);
+    this._send(file, type, label, duration);
   }
 
-  async _send(file, type, label) {
+  async _send(file, type, label, duration) {
     if (this._upload) { showToast('One upload at a time — hang on a moment.', 'error'); return; }
 
     const ctrl = new AbortController();
@@ -217,6 +217,8 @@ class Composer {
     const form = new FormData();
     form.append('file', file, file.name || `upload.${type === 'image' ? 'png' : 'webm'}`);
     form.append('message_type', type);
+    // Recorded webm/ogg files usually carry no length; send the one we measured.
+    if (duration) form.append('duration', duration.toFixed(1));
 
     const res = await apiUpload(`/api/rooms/${this.opts.roomSlug}/upload/`, form, {
       onProgress: setP,
@@ -339,7 +341,7 @@ class Composer {
 
     const type = (rec.recorder.mimeType || rec.mime || 'audio/webm').split(';')[0];
     const file = new File(rec.chunks, `voice-note-${Date.now()}.${AUDIO_EXT[type] || 'webm'}`, { type });
-    this.sendFile(file, { label: `Voice note · ${formatDuration(seconds)}` });
+    this.sendFile(file, { label: `Voice note · ${formatDuration(seconds)}`, duration: seconds });
     if (hitLimit) showToast(`Voice notes can be up to ${REC_MAX_SECONDS} seconds — sent.`);
     this.focus();
   }

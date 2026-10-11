@@ -70,6 +70,8 @@ class Message(models.Model):
             ),
         ],
     )
+    # Seconds, as measured by the client when it recorded the voice note.
+    duration = models.FloatField(blank=True, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:

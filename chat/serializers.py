@@ -53,12 +53,14 @@ class MessageSerializer(serializers.ModelSerializer):
             "content",
             "file",
             "file_url",
+            "duration",
             "timestamp",
         ]
         read_only_fields = [
             "id",
             "timestamp",
             "file_url",
+            "duration",
             "display_name",
             "sender_id",
             "avatar_url",

@@ -26,7 +26,12 @@ class MessageService:
 
     @staticmethod
     def create_media(
-        room: Room, username: str, message_type: str, file, sender=None
+        room: Room,
+        username: str,
+        message_type: str,
+        file,
+        sender=None,
+        duration: float | None = None,
     ) -> Message:
         allowed = {Message.MessageType.IMAGE, Message.MessageType.VOICE}
         if message_type not in allowed:
@@ -37,6 +42,7 @@ class MessageService:
             username=username,
             message_type=message_type,
             file=file,
+            duration=duration,
         )
         MessageService._emit_created(message, room)
         return message
@@ -60,5 +66,6 @@ class MessageService:
                 content=message.content,
                 file_url=message.file.url if message.file else None,
                 timestamp=message.timestamp.isoformat(),
+                duration=message.duration,
             )
         )

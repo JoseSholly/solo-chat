@@ -4,7 +4,7 @@ import pytest
 
 from chat.events import LastSeenUpdated, MessageCreated, RoomCreated
 from chat.models import Message, Room, RoomMembership
-from chat.services import MessageService, RoomService
+from chat.services import MediaService, MessageService, RoomService
 
 
 pytestmark = pytest.mark.django_db
@@ -53,6 +53,47 @@ def test_create_media_rejects_invalid_type(captured_events, user, room):
 
     assert captured_events == []
     assert Message.objects.count() == 0
+
+
+def test_create_media_stores_duration_and_emits_it(
+    captured_events, user, room, settings, tmp_path
+):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    settings.MEDIA_ROOT = tmp_path
+    file = SimpleUploadedFile("note.webm", b"\x1a\x45\xdf\xa3", "audio/webm")
+    message = MessageService.create_media(
+        room, user.username, "voice", file, sender=user, duration=7.25
+    )
+
+    message.refresh_from_db()
+    assert message.duration == 7.25
+    assert captured_events[0].duration == 7.25
+
+
+# ---------------------------------------------------------------------------
+# MediaService
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "message_type", "expected"),
+    [
+        ("7.256", "voice", 7.26),
+        (12, "voice", 12.0),
+        ("7.2", "image", None),  # only voice notes carry a length
+        (None, "voice", None),
+        ("", "voice", None),
+        ("abc", "voice", None),
+        ("0", "voice", None),
+        ("-3", "voice", None),
+        ("inf", "voice", None),
+        ("nan", "voice", None),
+        ("99999", "voice", None),
+    ],
+)
+def test_parse_duration(raw, message_type, expected):
+    assert MediaService.parse_duration(raw, message_type) == expected
 
 
 # ---------------------------------------------------------------------------

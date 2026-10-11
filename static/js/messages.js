@@ -44,8 +44,9 @@ const VoiceNotes = {
     const bars = this.shape(m.id || m.file_url).map((h, i) =>
       `<span style="--h:${h.toFixed(2)};--i:${i}"></span>`).join('');
     const who = _isOwn(m) ? 'your' : `${escHtml(m.display_name || m.username)}'s`;
+    const dur = Number(m.duration) > 0 ? Number(m.duration) : null;
     return `
-      <div class="voice">
+      <div class="voice"${dur ? ` data-duration="${dur}"` : ''}>
         <button type="button" class="voice-play" data-voice-toggle aria-label="Play ${who} voice note">
           ${icon('play', 16, 'i-play')}${icon('pause', 16, 'i-pause')}
         </button>
@@ -54,7 +55,7 @@ const VoiceNotes = {
           <div class="voice-bars">${bars}</div>
           <div class="voice-bars is-fill">${bars}</div>
         </div>
-        <span class="voice-time">–:––</span>
+        <span class="voice-time">${formatDuration(dur ?? NaN)}</span>
         <audio preload="metadata" src="${escHtml(m.file_url || '')}"></audio>
       </div>`;
   },
@@ -74,15 +75,22 @@ const VoiceNotes = {
     }
   },
 
+  // The browser's length when it knows it, else the one stored at upload.
+  length(voiceEl, audio) {
+    return isFinite(audio.duration) ? audio.duration : Number(voiceEl.dataset.duration) || NaN;
+  },
+
   seek(voiceEl, ratio) {
     const audio = voiceEl.querySelector('audio');
-    if (!audio || !isFinite(audio.duration)) return;
-    audio.currentTime = Math.max(0, Math.min(1, ratio)) * audio.duration;
+    if (!audio) return;
+    const d = this.length(voiceEl, audio);
+    if (!isFinite(d)) return;
+    audio.currentTime = Math.max(0, Math.min(1, ratio)) * d;
     this.paint(voiceEl, audio);
   },
 
   paint(voiceEl, audio) {
-    const d = audio.duration;
+    const d = this.length(voiceEl, audio);
     const t = audio.currentTime;
     const p = isFinite(d) && d > 0 ? t / d : 0;
     voiceEl.querySelector('.voice-bars.is-fill').style.setProperty('--p', (p * 100).toFixed(2) + '%');
@@ -126,6 +134,7 @@ const VoiceNotes = {
         break;
       case 'pause':
       case 'ended':
+        if (audio.dataset.probing) break;
         v.classList.remove('is-playing', 'is-buffering');
         v.querySelector('[data-voice-toggle]').setAttribute('aria-label', 'Play voice note');
         if (e.type === 'ended') audio.currentTime = 0;
@@ -135,6 +144,18 @@ const VoiceNotes = {
       case 'loadedmetadata':
       case 'durationchange':
       case 'timeupdate':
+        if (audio.dataset.probing) {
+          // Wait for the probe seek to resolve a real length, then rewind.
+          if (!isFinite(audio.duration)) break;
+          delete audio.dataset.probing;
+          audio.currentTime = 0;
+        } else if (audio.duration === Infinity && !v.dataset.duration) {
+          // Older notes stored no length, and MediaRecorder WebM has none in its
+          // header; seeking past the end makes the browser scan for it.
+          audio.dataset.probing = '1';
+          audio.currentTime = 1e101;
+          break;
+        }
         this.paint(v, audio);
         break;
       case 'error':
@@ -433,12 +454,13 @@ class MessageList {
     if (!wave) return;
     const v = wave.closest('.voice');
     const a = v.querySelector('audio');
-    if (!isFinite(a.duration)) {
+    const d = VoiceNotes.length(v, a);
+    if (!isFinite(d)) {
       if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); VoiceNotes.toggle(v); }
       return;
     }
-    const step = 5 / a.duration;
-    const cur  = a.currentTime / a.duration;
+    const step = 5 / d;
+    const cur  = a.currentTime / d;
     const map  = { ArrowRight: cur + step, ArrowUp: cur + step, ArrowLeft: cur - step, ArrowDown: cur - step, Home: 0, End: 0.999 };
     if (e.key in map) { e.preventDefault(); VoiceNotes.seek(v, map[e.key]); }
     else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); VoiceNotes.toggle(v); }

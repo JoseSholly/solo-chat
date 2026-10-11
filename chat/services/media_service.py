@@ -1,3 +1,5 @@
+import math
+
 from django.core.exceptions import ValidationError
 
 IMAGE_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
@@ -30,3 +32,14 @@ class MediaService:
 
         else:
             raise ValidationError(f"Unknown message_type: {message_type!r}")
+
+    @staticmethod
+    def parse_duration(raw) -> float | None:
+        """Client-reported length in seconds; anything unusable becomes None."""
+        try:
+            seconds = float(raw)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(seconds) or seconds <= 0:
+            return None
+        return round(seconds, 1)

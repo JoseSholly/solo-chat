@@ -3,12 +3,15 @@
 
 const IMAGE_MAX_BYTES = 10 * 1024 * 1024;   // mirrors MediaService limits
 const VOICE_MAX_BYTES = 25 * 1024 * 1024;
-const REC_MAX_SECONDS = 10 * 60;
+const REC_MAX_SECONDS = 60;
+const REC_WARN_SECONDS = 10;   // highlight the timer for the last few seconds
 const REC_LEVEL_BARS  = 110;   // enough history to span a wide composer; the left edge fades out
 
 // Formats the server accepts (MediaService.ALLOWED_AUDIO_TYPES), best first.
 const REC_MIME_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
 const AUDIO_EXT = { 'audio/webm': 'webm', 'audio/ogg': 'ogg', 'audio/mp4': 'm4a', 'audio/mpeg': 'mp3', 'audio/wav': 'wav' };
+
+const _recTimeText = (s) => `${formatDuration(s)} / ${formatDuration(REC_MAX_SECONDS)}`;
 
 const _canRecord = () =>
   !!(window.MediaRecorder && navigator.mediaDevices?.getUserMedia && window.isSecureContext);
@@ -59,7 +62,7 @@ class Composer {
 
         <div class="composer-rec" hidden>
           <button type="button" class="composer-btn" data-act="rec-cancel" aria-label="Discard recording" title="Discard">${icon('trash', 19)}</button>
-          <span class="rec-status"><span class="rec-dot" aria-hidden="true"></span><span class="rec-time" role="timer" aria-label="Recording time">0:00</span></span>
+          <span class="rec-status"><span class="rec-dot" aria-hidden="true"></span><span class="rec-time" role="timer" aria-label="Recording time">${_recTimeText(0)}</span></span>
           <span class="rec-levels" aria-hidden="true">${'<span></span>'.repeat(REC_LEVEL_BARS)}</span>
           <button type="button" class="composer-btn rec-send" data-act="rec-send" aria-label="Send voice note" title="Send">${icon('arrowUp', 19)}</button>
         </div>
@@ -172,7 +175,7 @@ class Composer {
 
   // ── Attachments ────────────────────────────────────────────────────────
 
-  sendFile(file, { label } = {}) {
+  sendFile(file, { label, duration } = {}) {
     const type = file.type.startsWith('image/') ? 'image'
                : file.type.startsWith('audio/') ? 'voice'
                : null;
@@ -182,10 +185,10 @@ class Composer {
       showToast(`${type === 'image' ? 'Images' : 'Voice notes'} can be up to ${max / 1024 / 1024} MB.`, 'error');
       return;
     }
-    this._send(file, type, label);
+    this._send(file, type, label, duration);
   }
 
-  async _send(file, type, label) {
+  async _send(file, type, label, duration) {
     if (this._upload) { showToast('One upload at a time — hang on a moment.', 'error'); return; }
 
     const ctrl = new AbortController();
@@ -214,6 +217,8 @@ class Composer {
     const form = new FormData();
     form.append('file', file, file.name || `upload.${type === 'image' ? 'png' : 'webm'}`);
     form.append('message_type', type);
+    // Recorded webm/ogg files usually carry no length; send the one we measured.
+    if (duration) form.append('duration', duration.toFixed(1));
 
     const res = await apiUpload(`/api/rooms/${this.opts.roomSlug}/upload/`, form, {
       onProgress: setP,
@@ -295,10 +300,15 @@ class Composer {
     } catch { /* meter is decoration; recording still works */ }
 
     const timeEl = this.root.querySelector('.rec-time');
+    const statusEl = this.root.querySelector('.rec-status');
     rec.timer = setInterval(() => {
-      const s = (performance.now() - rec.started) / 1000;
-      timeEl.textContent = formatDuration(s);
-      if (s >= REC_MAX_SECONDS) this._finishRecording(true);
+      const s = Math.min((performance.now() - rec.started) / 1000, REC_MAX_SECONDS);
+      timeEl.textContent = _recTimeText(s);
+      if (s >= REC_MAX_SECONDS - REC_WARN_SECONDS && !statusEl.classList.contains('is-ending')) {
+        statusEl.classList.add('is-ending');
+        announce(`${REC_WARN_SECONDS} seconds left`);
+      }
+      if (s >= REC_MAX_SECONDS) this._finishRecording(true, { hitLimit: true });
     }, 250);
 
     this.el.form.classList.add('is-recording');
@@ -307,7 +317,7 @@ class Composer {
     announce('Recording started');
   }
 
-  async _finishRecording(send) {
+  async _finishRecording(send, { hitLimit = false } = {}) {
     const rec = this._rec;
     if (!rec) return;
     this._rec = null;
@@ -322,18 +332,24 @@ class Composer {
 
     this.el.form.classList.remove('is-recording');
     this.el.rec.hidden = true;
-    this.root.querySelector('.rec-time').textContent = '0:00';
-    this.el.levels.forEach(s => { s.style.transform = ''; });
+    this._resetRecUi();
 
     if (!send) { announce('Recording discarded'); this.focus(); return; }
 
-    const seconds = (performance.now() - rec.started) / 1000;
+    const seconds = Math.min((performance.now() - rec.started) / 1000, REC_MAX_SECONDS);
     if (seconds < 0.8 || !rec.chunks.length) { showToast('That was too short to send.', 'error'); return; }
 
     const type = (rec.recorder.mimeType || rec.mime || 'audio/webm').split(';')[0];
     const file = new File(rec.chunks, `voice-note-${Date.now()}.${AUDIO_EXT[type] || 'webm'}`, { type });
-    this.sendFile(file, { label: `Voice note · ${formatDuration(seconds)}` });
+    this.sendFile(file, { label: `Voice note · ${formatDuration(seconds)}`, duration: seconds });
+    if (hitLimit) showToast(`Voice notes can be up to ${REC_MAX_SECONDS} seconds — sent.`);
     this.focus();
+  }
+
+  _resetRecUi() {
+    this.root.querySelector('.rec-time').textContent = _recTimeText(0);
+    this.root.querySelector('.rec-status').classList.remove('is-ending');
+    this.el.levels.forEach(s => { s.style.transform = ''; });
   }
 
   destroy() {

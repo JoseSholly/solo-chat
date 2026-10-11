@@ -44,8 +44,9 @@ const VoiceNotes = {
     const bars = this.shape(m.id || m.file_url).map((h, i) =>
       `<span style="--h:${h.toFixed(2)};--i:${i}"></span>`).join('');
     const who = _isOwn(m) ? 'your' : `${escHtml(m.display_name || m.username)}'s`;
+    const length = Number(m.duration) > 0 ? Number(m.duration) : null;
     return `
-      <div class="voice">
+      <div class="voice"${length ? ` data-duration="${length}"` : ''}>
         <button type="button" class="voice-play" data-voice-toggle aria-label="Play ${who} voice note">
           ${icon('play', 16, 'i-play')}${icon('pause', 16, 'i-pause')}
         </button>
@@ -54,7 +55,7 @@ const VoiceNotes = {
           <div class="voice-bars">${bars}</div>
           <div class="voice-bars is-fill">${bars}</div>
         </div>
-        <span class="voice-time">–:––</span>
+        <span class="voice-time">${formatDuration(length ?? NaN)}</span>
         <audio preload="metadata" src="${escHtml(m.file_url || '')}"></audio>
       </div>`;
   },
@@ -74,17 +75,25 @@ const VoiceNotes = {
     }
   },
 
+  // Recorded webm/ogg often reports Infinity until fully played; fall back to
+  // the length the sender's recorder measured.
+  duration(voiceEl, audio) {
+    if (isFinite(audio.duration) && audio.duration > 0) return audio.duration;
+    return Number(voiceEl.dataset.duration) || NaN;
+  },
+
   seek(voiceEl, ratio) {
     const audio = voiceEl.querySelector('audio');
-    if (!audio || !isFinite(audio.duration)) return;
-    audio.currentTime = Math.max(0, Math.min(1, ratio)) * audio.duration;
+    const d = audio && this.duration(voiceEl, audio);
+    if (!audio || !isFinite(d)) return;
+    audio.currentTime = Math.max(0, Math.min(1, ratio)) * d;
     this.paint(voiceEl, audio);
   },
 
   paint(voiceEl, audio) {
-    const d = audio.duration;
+    const d = this.duration(voiceEl, audio);
     const t = audio.currentTime;
-    const p = isFinite(d) && d > 0 ? t / d : 0;
+    const p = isFinite(d) && d > 0 ? Math.min(1, t / d) : 0;
     voiceEl.querySelector('.voice-bars.is-fill').style.setProperty('--p', (p * 100).toFixed(2) + '%');
     const wave = voiceEl.querySelector('.voice-wave');
     wave.setAttribute('aria-valuenow', String(Math.round(p * 100)));

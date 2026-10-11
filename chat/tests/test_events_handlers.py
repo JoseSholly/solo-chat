@@ -75,6 +75,17 @@ def test_broadcast_message_to_room_uses_file_url_for_media(mock_channel_layer):
     assert payload["file_url"] == "/media/pic.jpg"
 
 
+def test_broadcast_message_to_room_includes_voice_duration(mock_channel_layer):
+    event = _sample_message_event(
+        message_type="voice", content=None, file_url="/media/n.webm", duration=7.5
+    )
+
+    broadcast_message_to_room(event)
+
+    _, payload = mock_channel_layer[0]
+    assert payload["duration"] == 7.5
+
+
 def test_broadcast_message_to_room_noop_without_channel_layer(monkeypatch):
     monkeypatch.setattr("chat.events.handlers.get_channel_layer", lambda: None)
     broadcast_message_to_room(_sample_message_event())  # must not raise

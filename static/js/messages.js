@@ -135,6 +135,7 @@ const VoiceNotes = {
         break;
       case 'pause':
       case 'ended':
+        if (audio.dataset.probing) break;
         v.classList.remove('is-playing', 'is-buffering');
         v.querySelector('[data-voice-toggle]').setAttribute('aria-label', 'Play voice note');
         if (e.type === 'ended') audio.currentTime = 0;
@@ -144,6 +145,18 @@ const VoiceNotes = {
       case 'loadedmetadata':
       case 'durationchange':
       case 'timeupdate':
+        if (audio.dataset.probing) {
+          // Wait for the probe seek to resolve a real length, then rewind.
+          if (!isFinite(audio.duration)) break;
+          delete audio.dataset.probing;
+          audio.currentTime = 0;
+        } else if (audio.duration === Infinity && !v.dataset.duration) {
+          // Notes uploaded before lengths were stored: seeking past the end
+          // makes the browser scan the file and report the real length.
+          audio.dataset.probing = '1';
+          audio.currentTime = 1e101;
+          break;
+        }
         this.paint(v, audio);
         break;
       case 'error':

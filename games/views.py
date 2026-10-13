@@ -124,6 +124,7 @@ AcceptView = _game_action(GameService.accept)
 DeclineView = _game_action(GameService.decline)
 CancelView = _game_action(GameService.cancel)
 RematchView = _game_action(GameService.rematch)
+NotNowView = _game_action(GameService.not_now)
 
 
 class BotGameView(APIView):

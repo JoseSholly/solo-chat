@@ -13,4 +13,5 @@ urlpatterns = [
     path("<uuid:game_id>/decline/", views.DeclineView.as_view(), name="games-decline"),
     path("<uuid:game_id>/cancel/", views.CancelView.as_view(), name="games-cancel"),
     path("<uuid:game_id>/rematch/", views.RematchView.as_view(), name="games-rematch"),
+    path("<uuid:game_id>/not-now/", views.NotNowView.as_view(), name="games-not-now"),
 ]

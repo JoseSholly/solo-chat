@@ -7,7 +7,7 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from chat.consumers import _authenticate_from_scope
 
 from .serializers import game_state
-from .services import GameError, GameService
+from .services import GameError, GameService, SeatService
 
 BOT_THINK_SECONDS = 0.45  # long enough to read as a turn, short enough not to drag
 
@@ -15,6 +15,8 @@ BOT_THINK_SECONDS = 0.45  # long enough to read as a turn, short enough not to d
 class GameConsumer(AsyncWebsocketConsumer):
     """One socket per player per game. Moves, resigning and presence go
     through here; challenges and matchmaking are REST + notifications."""
+
+    leaving = False  # the player said they're leaving, rather than dropping
 
     async def connect(self):
         self.game_id = str(self.scope["url_route"]["kwargs"]["game_id"])
@@ -37,6 +39,8 @@ class GameConsumer(AsyncWebsocketConsumer):
         await self.accept()
 
         await self.send_json({"type": "game_state", "game": game_state(game)})
+        opponent = await database_sync_to_async(SeatService.join)(game, self.user)
+        await self.send_json({"type": "opponent", **opponent})
         await self._presence("join")
 
         # The bot's turn may have been interrupted by a disconnect.
@@ -45,8 +49,13 @@ class GameConsumer(AsyncWebsocketConsumer):
     async def disconnect(self, close_code):
         if not hasattr(self, "group_name"):
             return
-        await self._presence("leave")
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        claim_in = await database_sync_to_async(SeatService.leave)(
+            self.game_id, self.user, on_purpose=self.leaving
+        )
+        # Another tab of theirs is still on the board: nothing to announce.
+        if claim_in is not None:
+            await self._presence("leave", left=self.leaving, claim_in=claim_in)
 
     async def receive(self, text_data):
         try:
@@ -62,6 +71,10 @@ class GameConsumer(AsyncWebsocketConsumer):
                 await self._bot_turn(delay=True)
         elif kind == "resign":
             await self._run(GameService.resign, self.game_id, self.user)
+        elif kind == "claim":
+            await self._run(GameService.claim_win, self.game_id, self.user)
+        elif kind == "leave":
+            self.leaving = True
         elif kind == "here":
             await self._presence("here")
 
@@ -104,7 +117,7 @@ class GameConsumer(AsyncWebsocketConsumer):
         if game is not None:
             await self._broadcast(game)
 
-    async def _presence(self, event):
+    async def _presence(self, event, **extra):
         await self.channel_layer.group_send(
             self.group_name,
             {
@@ -112,5 +125,6 @@ class GameConsumer(AsyncWebsocketConsumer):
                 "event": event,
                 "username": self.user.username,
                 "display_name": self.user.display_name,
+                **extra,
             },
         )

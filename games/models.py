@@ -66,6 +66,8 @@ class Game(models.Model):
         max_length=4, choices=Result.choices, blank=True, default=""
     )
     resigned = models.BooleanField(default=False)
+    # The winner claimed it after the other player left the board.
+    abandoned = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     finished_at = models.DateTimeField(null=True, blank=True)
@@ -101,9 +103,32 @@ class Game(models.Model):
         if (
             self.result in (self.Result.X_WINS, self.Result.O_WINS)
             and not self.resigned
+            and not self.abandoned
         ):
             return winning_line(self.board)
         return None
+
+
+class GameSeat(models.Model):
+    """A player's open board sockets for one game, so the other player can be
+    told whether they're there, briefly disconnected, or gone on purpose."""
+
+    game = models.ForeignKey(Game, on_delete=models.CASCADE, related_name="seats")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="+"
+    )
+    connections = models.PositiveIntegerField(default=0)
+    away_since = models.DateTimeField(null=True, blank=True)
+    # Left the board on purpose, or answered "Not now" to a resume request.
+    left = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["game", "user"], name="unique_game_seat")
+        ]
+
+    def __str__(self):
+        return f"{self.user} in {self.game_id} ({self.connections})"
 
 
 class MatchQueueEntry(models.Model):

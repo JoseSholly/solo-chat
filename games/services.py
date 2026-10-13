@@ -8,11 +8,14 @@ from django.utils import timezone
 
 from . import bot, notify
 from .logic import O, X, empty_cells, is_full, next_symbol, other, place, winner
-from .models import Game, MatchQueueEntry, UserPresence
+from .models import Game, GameSeat, MatchQueueEntry, UserPresence
 from .serializers import user_brief
 
 ONLINE_WINDOW = timedelta(seconds=90)  # clients heartbeat every 30s
 CHALLENGE_TTL = timedelta(minutes=2)
+# How long a dropped connection gets to come back before the other player
+# may claim the win. Leaving on purpose or going offline skips the wait.
+CLAIM_GRACE = timedelta(seconds=30)
 
 
 class GameError(Exception):
@@ -330,6 +333,53 @@ class GameService:
         return game
 
     @staticmethod
+    def claim_win(game_id, user) -> Game:
+        """End the game in your favour because the other player left the board."""
+        with transaction.atomic():
+            game = _locked(game_id)
+            symbol = game.symbol_of(user)
+            if symbol is None:
+                raise GameError("You're not in this game.", "forbidden", 403)
+            if game.status != Game.Status.ACTIVE or game.vs_bot:
+                raise GameError("This game isn't being played.", "not_active", 409)
+            status = SeatService.opponent_status(game, user)
+            if status["here"]:
+                raise GameError("They're back. Play on!", "opponent_here", 409)
+            if status["claim_in"] > 0:
+                raise GameError("Give them a moment to reconnect.", "too_soon", 409)
+            game.result = Game.Result.X_WINS if symbol == X else Game.Result.O_WINS
+            game.abandoned = True
+            game.status = Game.Status.FINISHED
+            game.finished_at = timezone.now()
+            game.save()
+        return game
+
+    @staticmethod
+    def not_now(game_id, user) -> Game:
+        """Answer a resume request with "Not now": the other player can claim
+        the win instead of waiting."""
+        game = GameService.get(game_id)
+        if game is None:
+            raise GameError("Game not found.", "not_found", 404)
+        if not game.is_player(user):
+            raise GameError("You're not in this game.", "forbidden", 403)
+        if game.status != Game.Status.ACTIVE:
+            raise GameError("This game isn't being played.", "not_active", 409)
+        seat, _ = GameSeat.objects.get_or_create(game=game, user=user)
+        if seat.connections == 0:
+            GameSeat.objects.filter(pk=seat.pk).update(left=True)
+            notify.to_game(
+                game.id,
+                "player_presence",
+                event="busy",
+                username=user.username,
+                display_name=user.display_name,
+                left=True,
+                claim_in=0,
+            )
+        return game
+
+    @staticmethod
     def rematch(game_id, user) -> Game:
         game = GameService.get(game_id)
         if game is None:
@@ -393,6 +443,82 @@ class GameService:
             ),
             "queued": MatchmakingService.is_queued(user),
         }
+
+
+# ---------------------------------------------------------------------------
+# Who is on the board
+# ---------------------------------------------------------------------------
+
+
+class SeatService:
+    @staticmethod
+    def join(game, user) -> dict:
+        """Count a board socket in. Returns the opponent's status for the
+        joiner, after telling an opponent who's online elsewhere in the app
+        that this player is back."""
+        seat, _ = GameSeat.objects.get_or_create(game=game, user=user)
+        GameSeat.objects.filter(pk=seat.pk).update(
+            connections=F("connections") + 1, away_since=None, left=False
+        )
+        if game.vs_bot or game.status != Game.Status.ACTIVE:
+            return {"here": True, "online": True, "left": False, "claim_in": 0}
+
+        status = SeatService.opponent_status(game, user)
+        opponent = game.opponent_of(user)
+        # Only an opponent who has been on this board before needs asking back:
+        # a new game already reached them as a match or an accepted challenge.
+        been_here = GameSeat.objects.filter(game=game, user=opponent).exists()
+        status["notified"] = not status["here"] and status["online"] and been_here
+        if status["notified"]:
+            notify.to_user(
+                opponent.id,
+                "game_resume",
+                game_id=str(game.id),
+                from_user=user_brief(user),
+            )
+        return status
+
+    @staticmethod
+    def leave(game_id, user, on_purpose: bool = False) -> int | None:
+        """Count a board socket out. When it was the player's last one, returns
+        how many seconds until the other player may claim the win."""
+        now = timezone.now()
+        seats = GameSeat.objects.filter(game_id=game_id, user=user)
+        seats.update(
+            connections=Case(
+                When(connections__gt=0, then=F("connections") - 1), default=0
+            )
+        )
+        seat = seats.first()
+        if seat is None or seat.connections > 0:
+            return None
+        seats.update(away_since=now, left=on_purpose)
+
+        game = GameService.get(game_id)
+        if game is None or game.vs_bot or game.status != Game.Status.ACTIVE:
+            return None
+        # Withdraw a resume request the opponent hasn't answered yet.
+        notify.to_user(
+            game.opponent_of(user).id, "game_resume_cancel", game_id=str(game_id)
+        )
+        if on_purpose or not PresenceService.is_online(user):
+            return 0
+        return int(CLAIM_GRACE.total_seconds())
+
+    @staticmethod
+    def opponent_status(game, user) -> dict:
+        opponent = game.opponent_of(user)
+        seat = GameSeat.objects.filter(game=game, user=opponent).first()
+        online = PresenceService.is_online(opponent)
+        here = online and seat is not None and seat.connections > 0
+        left = bool(seat and seat.left)
+        if here or left or not online:
+            claim_in = 0
+        else:
+            since = (seat.away_since if seat else None) or game.updated_at
+            remaining = CLAIM_GRACE - (timezone.now() - since)
+            claim_in = max(0, int(remaining.total_seconds() + 0.999))
+        return {"here": here, "online": online, "left": left, "claim_in": claim_in}
 
 
 # ---------------------------------------------------------------------------

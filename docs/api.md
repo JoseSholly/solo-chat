@@ -91,6 +91,7 @@ All endpoints require authentication. Games are returned in one shape everywhere
 | `POST` | `<id>/decline/` | Decline a challenge (challenged player only) |
 | `POST` | `<id>/cancel/` | Withdraw your challenge (challenger only) |
 | `GET` | `<id>/` | Game state (players only) |
+| `POST` | `<id>/not-now/` | Turn down a `game_resume` request; the other player can claim the win |
 | `POST` | `<id>/rematch/` | After a finished game: a new bot game, or a new challenge to the same opponent |
 | `POST` | `bot/` | Start a game against the computer: `{ "level": "easy" \| "medium" \| "hard" }` |
 | `POST` | `quick-match/` | Join Quick match. `200 { status: "matched", game }` or `202 { status: "waiting", online_count }` |

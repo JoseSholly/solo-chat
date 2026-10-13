@@ -236,3 +236,9 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 
     async def match_found(self, event):
         await self.send(text_data=json.dumps(event))
+
+    async def game_resume(self, event):
+        await self.send(text_data=json.dumps(event))
+
+    async def game_resume_cancel(self, event):
+        await self.send(text_data=json.dumps(event))

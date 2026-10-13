@@ -190,6 +190,7 @@ function _saveLevel(level) {
 
 const Games = {
   _invites: new Map(),   // game id → { layer, from }
+  _resumes: new Map(),   // game id → layer of an open "wants to continue" prompt
 
   async init() {
     document.getElementById('nav-games')?.addEventListener('click', (e) => {
@@ -209,6 +210,8 @@ const Games = {
     if (msg.type === 'game_invite')        this._onInvite(msg);
     if (msg.type === 'game_invite_update') this._onInviteUpdate(msg);
     if (msg.type === 'match_found')        this._onMatchFound(msg);
+    if (msg.type === 'game_resume')        this._onResume(msg);
+    if (msg.type === 'game_resume_cancel') this._resumes.get(msg.game_id)?.close('withdrawn');
   },
 
   refreshLobby() {
@@ -283,6 +286,47 @@ const Games = {
       this.forgetInvite(msg.game_id);
     }
     this.refreshLobby();
+  },
+
+  // The other player reopened a game you're both in while you're elsewhere.
+  _onResume(msg) {
+    const id = msg.game_id;
+    if (_activePanel instanceof GameBoard && _activePanel.id === id) return;
+    if (_matchIntroId === id || this._resumes.has(id)) return;
+    const from = msg.from_user;
+
+    const titleId = 'gr-' + Math.random().toString(36).slice(2, 8);
+    const { overlay, layer } = createModal({
+      size: 'sm',
+      role: 'alertdialog',
+      labelledBy: titleId,
+      cls: 'invite-card',
+      initialFocus: '[data-act="join"]',
+      // Dismissing without answering counts as "Not now", so they aren't left waiting.
+      onClose: (r) => {
+        this._resumes.delete(id);
+        if (r === undefined || r === 'not-now') apiFetch(`/api/games/${id}/not-now/`, { method: 'POST' });
+        if (r === 'withdrawn') showToast(`${from.display_name} left the game.`);
+      },
+      html: `
+        <div class="invite-card-marks" aria-hidden="true">${MARK_SVG.X}${MARK_SVG.O}</div>
+        ${avatarHtml({ name: from.display_name, url: from.avatar_url, size: 'lg' })}
+        <h2 class="modal-title" id="${titleId}">${escHtml(from.display_name)} wants to continue your game</h2>
+        <p class="modal-desc">Tic-Tac-Toe · they're waiting on the board.</p>
+        <div class="modal-foot">
+          <button type="button" class="btn btn-ghost" data-act="not-now">Not now</button>
+          <button type="button" class="btn btn-primary" data-act="join">Join</button>
+        </div>`,
+    });
+    this._resumes.set(id, layer);
+    announce(`${from.display_name} wants to continue your Tic-Tac-Toe game`);
+
+    overlay.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-act]');
+      if (!b) return;
+      layer.close(b.dataset.act);
+      if (b.dataset.act === 'join') openGame(id);
+    });
   },
 
   _onMatchFound(msg) {
@@ -486,7 +530,8 @@ class GamesLobby {
       const opp = _opponentOf(g);
       const out = _outcomeFor(g);
       const label = { win: 'Won', loss: 'Lost', draw: 'Draw' }[out];
-      const how = g.resigned ? (out === 'win' ? ' · they resigned' : ' · resigned') : '';
+      const how = g.resigned ? (out === 'win' ? ' · they resigned' : ' · resigned')
+                : g.abandoned ? (out === 'win' ? ' · they left' : ' · you left') : '';
       return this._row(opp, `${relativeTime(g.finished_at)}${how}`,
         `<span class="result-chip result-chip--${out}">${label}</span>`, g.id, true);
     });
@@ -652,6 +697,7 @@ class GameBoard {
     this.mine      = null;
     this.focusIdx  = 4;
     this.opponentHere = false;
+    this._away     = null;   // why the opponent isn't on the board, and when the win can be claimed
     this._pending  = null;   // index of a move sent but not yet confirmed
     this._destroyed = false;
     this._attempts = 0;
@@ -683,6 +729,7 @@ class GameBoard {
           <div class="game-stage">
             <div class="game-players" id="gb-players"></div>
             <p class="game-status" id="gb-status" aria-live="polite">&nbsp;</p>
+            <div class="game-away" id="gb-away" hidden></div>
             <div class="board-wrap">
               <div class="board" id="gb-board" role="grid" aria-label="Tic-Tac-Toe board" aria-busy="true">
                 ${[0, 1, 2].map(r => `<div class="board-row" role="row">${[0, 1, 2].map(c => {
@@ -701,6 +748,7 @@ class GameBoard {
     this._el = {
       conn: q('gb-conn'), vs: q('gb-vs'), resign: q('gb-resign'), players: q('gb-players'),
       status: q('gb-status'), board: q('gb-board'), line: q('gb-line'), result: q('gb-result'),
+      away: q('gb-away'),
     };
     this._cells = [...this._el.board.querySelectorAll('.cell')];
   }
@@ -717,7 +765,8 @@ class GameBoard {
       if (!b) return;
       switch (b.dataset.act) {
         case 'nav':     Nav.open(); break;
-        case 'lobby':   openGames(); break;
+        case 'lobby':   this._leave(); break;
+        case 'claim':   b.disabled = true; this._send({ type: 'claim' }); break;
         case 'resign':  this._resign(); break;
         case 'rematch': this._rematch(b); break;
         case 'retry':   this._retryNow(); break;
@@ -773,9 +822,11 @@ class GameBoard {
       try { msg = JSON.parse(e.data); } catch { return; }
       if (msg.type === 'game_state')      this._onState(msg.game);
       if (msg.type === 'player_presence') this._onPresence(msg);
+      if (msg.type === 'opponent')        this._onOpponent(msg);
       if (msg.type === 'error') {
         showToast(msg.error, 'error');
         this._pending = null;
+        this._renderAway();   // re-enables Claim win if the claim was refused
         if (this.game) this._onState(this.game, { replay: false });
       }
     };
@@ -833,15 +884,65 @@ class GameBoard {
   _onPresence(msg) {
     const me = getUser();
     if (!this.game || msg.username === me?.username) return;
+    const name = msg.display_name || msg.username;
     if (msg.event === 'join') {
+      if (this._away) showToast(`${name} is back.`);
       this.opponentHere = true;
+      this._away = null;
       this._send({ type: 'here' });   // tell the newcomer we're already here
     } else if (msg.event === 'here') {
       this.opponentHere = true;
-    } else if (msg.event === 'leave') {
+      this._away = null;
+    } else if (msg.event === 'leave' || msg.event === 'busy') {
       this.opponentHere = false;
+      this._setAway({ reason: msg.event === 'busy' ? 'busy' : msg.left ? 'left' : 'dropped', claimIn: msg.claim_in });
+      if (msg.event === 'leave' && msg.left && this.game?.status === 'active') showToast(`${name} left the game.`);
     }
     this._renderPlayers();
+    this._renderAway();
+  }
+
+  // Sent once on connect: where the opponent is right now.
+  _onOpponent(msg) {
+    this.opponentHere = msg.here;
+    if (msg.here) this._away = null;
+    else this._setAway({
+      reason: !msg.online ? 'offline' : msg.notified ? 'notified' : msg.left ? 'left' : 'dropped',
+      claimIn: msg.claim_in,
+    });
+    this._renderPlayers();
+    this._renderAway();
+  }
+
+  _setAway({ reason, claimIn = 0 }) {
+    this._away = { reason, claimAt: Date.now() + (claimIn || 0) * 1000 };
+  }
+
+  // A line under the status saying why the opponent isn't here, with a way
+  // out so nobody waits on someone who isn't coming back.
+  _renderAway() {
+    clearTimeout(this._awayTimer);
+    const el = this._el.away;
+    const g = this.game;
+    if (!g || !this._away || g.status !== 'active' || g.vs_bot) { el.hidden = true; el.innerHTML = ''; return; }
+
+    const opp = _opponentOf(g);
+    const name = (opp.display_name || opp.username).split(' ')[0];
+    const text = {
+      left:     `${name} left the game.`,
+      busy:     `${name} can't play right now.`,
+      offline:  `${name} is offline.`,
+      notified: `We let ${name} know you're back. Waiting for them…`,
+      dropped:  `${name} lost connection. Waiting for them to come back…`,
+    }[this._away.reason];
+    const wait = Math.ceil((this._away.claimAt - Date.now()) / 1000);
+    const btn = wait > 0
+      ? `<button type="button" class="btn btn-secondary btn-sm" disabled>Claim win in ${formatDuration(wait)}</button>`
+      : '<button type="button" class="btn btn-primary btn-sm" data-act="claim">Claim win</button>';
+
+    el.hidden = false;
+    el.innerHTML = `<span class="game-away-text">${escHtml(text)}</span>${btn}`;
+    if (wait > 0) this._awayTimer = setTimeout(() => this._renderAway(), 1000);
   }
 
   // ── State ────────────────────────────────────────────────────────────────
@@ -862,6 +963,7 @@ class GameBoard {
     this._renderPlayers();
     this._renderBoard({ animate: !first && replay });
     this._renderStatus();
+    this._renderAway();
     if (game.status === 'finished' && was !== 'finished') this._finish({ animate: !first });
     else if (game.status === 'finished' && first) this._finish({ animate: false });
   }
@@ -948,8 +1050,8 @@ class GameBoard {
       case 'finished': {
         const out = _outcomeFor(g);
         text = out === 'draw' ? 'It’s a draw.'
-             : out === 'win'  ? (g.resigned ? `${oppName} resigned. You win!` : 'You win!')
-             : (g.resigned ? 'You resigned.' : `${oppName} wins.`);
+             : out === 'win'  ? (g.resigned ? `${oppName} resigned. You win!` : g.abandoned ? `${oppName} left. You win!` : 'You win!')
+             : (g.resigned ? 'You resigned.' : g.abandoned ? `You left, so ${oppName} wins.` : `${oppName} wins.`);
         break;
       }
     }
@@ -970,6 +1072,7 @@ class GameBoard {
     const opp = _opponentOf(g);
     const sub = out === 'draw' ? 'Nobody got three in a row.'
               : g.resigned ? (out === 'win' ? 'Your opponent resigned.' : 'You resigned this one.')
+              : g.abandoned ? (out === 'win' ? 'Your opponent left the game.' : 'You left the game.')
               : out === 'win' ? 'Three in a row.' : `${opp.is_bot ? 'The bot' : opp.display_name} got three in a row.`;
     const el = this._el.result;
     el.hidden = false;
@@ -1017,6 +1120,24 @@ class GameBoard {
     if (ok) this._send({ type: 'resign' });
   }
 
+  _inLiveHumanGame() {
+    return this.game?.status === 'active' && !this.game.vs_bot;
+  }
+
+  async _leave() {
+    if (this._inLiveHumanGame()) {
+      const opp = _opponentOf(this.game);
+      const ok = await confirmDialog({
+        title: 'Leave this game?',
+        body: `${opp.display_name} will be told you left and can claim the win.`,
+        confirmLabel: 'Leave',
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    openGames();
+  }
+
   async _rematch(btn) {
     btn.disabled = true;
     const res  = await apiFetch(`/api/games/${this.id}/rematch/`, { method: 'POST' });
@@ -1036,8 +1157,14 @@ class GameBoard {
   destroy() {
     this._destroyed = true;
     clearTimeout(this._reconnectTimer);
+    clearTimeout(this._awayTimer);
     window.removeEventListener('online', this._onOnline);
     document.removeEventListener('visibilitychange', this._onVisibility);
-    if (this.ws) { this.ws.onclose = null; this.ws.close(); this.ws = null; }
+    if (this.ws) {
+      // Navigating away inside the app is leaving on purpose; a closed tab or
+      // a dropped connection gets the reconnect grace period instead.
+      if (this._inLiveHumanGame() && this.ws.readyState === WebSocket.OPEN) this._send({ type: 'leave' });
+      this.ws.onclose = null; this.ws.close(); this.ws = null;
+    }
   }
 }

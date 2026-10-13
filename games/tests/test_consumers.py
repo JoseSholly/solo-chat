@@ -87,6 +87,95 @@ def test_bot_answers_a_move(alice):
 
 
 @pytest.mark.django_db(transaction=True)
+def test_leaving_on_purpose_lets_the_other_player_claim_the_win(alice, bob, online):
+    online(alice, bob)
+    game = Game.objects.create(player_x=alice, player_o=bob, status=Game.Status.ACTIVE)
+    path = f"/ws/games/{game.id}/"
+
+    async def scenario():
+        a, b = _ws(alice, path), _ws(bob, path)
+        assert (await a.connect())[0]
+        assert (await b.connect())[0]
+        assert (await _next(b, "opponent"))["here"] is True
+
+        await b.send_json_to({"type": "leave"})
+        await b.disconnect()
+        gone = await _next(a, "player_presence")
+        while gone["event"] != "leave":
+            gone = await _next(a, "player_presence")
+        assert gone["left"] is True and gone["claim_in"] == 0
+
+        await a.send_json_to({"type": "claim"})
+        state = (await _next(a, "game_state"))["game"]
+        assert state["status"] == "finished"
+        assert state["result"] == "x"
+        assert state["abandoned"] is True
+        await a.disconnect()
+
+    async_to_sync(scenario)()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_dropped_connection_gets_a_grace_period(alice, bob, online):
+    online(alice, bob)
+    game = Game.objects.create(player_x=alice, player_o=bob, status=Game.Status.ACTIVE)
+    path = f"/ws/games/{game.id}/"
+
+    async def scenario():
+        a, b = _ws(alice, path), _ws(bob, path)
+        assert (await a.connect())[0]
+        assert (await b.connect())[0]
+        await b.disconnect()
+        gone = await _next(a, "player_presence")
+        while gone["event"] != "leave":
+            gone = await _next(a, "player_presence")
+        assert gone["left"] is False and gone["claim_in"] == 30
+
+        await a.send_json_to({"type": "claim"})
+        assert (await _next(a, "error"))["code"] == "too_soon"
+        await a.disconnect()
+
+    async_to_sync(scenario)()
+
+
+@pytest.mark.django_db(transaction=True)
+def test_resuming_asks_the_other_player_to_come_back(alice, bob):
+    game = Game.objects.create(player_x=alice, player_o=bob, status=Game.Status.ACTIVE)
+    path = f"/ws/games/{game.id}/"
+
+    async def scenario():
+        bn = _ws(bob, "/ws/notifications/")
+        assert (await bn.connect())[0]
+        await bn.receive_nothing(timeout=0.2)  # let the presence row be written
+        # Bob played earlier, then went elsewhere in the app.
+        b = _ws(bob, path)
+        assert (await b.connect())[0]
+        await b.send_json_to({"type": "leave"})
+        await b.disconnect()
+
+        a = _ws(alice, path)
+        assert (await a.connect())[0]
+        status = await _next(a, "opponent")
+        assert status["notified"] is True and status["here"] is False
+
+        resume = await _next(bn, "game_resume")
+        assert resume["game_id"] == str(game.id)
+        assert resume["from_user"]["username"] == "alice"
+
+        # Bob says "Not now": Alice can claim straight away.
+        await database_sync_to_async(GameService.not_now)(game.id, bob)
+        busy = await _next(a, "player_presence")
+        while busy["event"] != "busy":
+            busy = await _next(a, "player_presence")
+        assert busy["claim_in"] == 0
+
+        await a.disconnect()
+        await bn.disconnect()
+
+    async_to_sync(scenario)()
+
+
+@pytest.mark.django_db(transaction=True)
 def test_notification_socket_tracks_presence_and_delivers_invites(alice, bob):
     async def scenario():
         b = _ws(bob, "/ws/notifications/")

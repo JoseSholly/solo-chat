@@ -41,6 +41,7 @@ def game_state(game, request=None) -> dict:
         "next": next_symbol(game.board) if active else None,
         "result": game.result or None,
         "resigned": game.resigned,
+        "abandoned": game.abandoned,
         "winning_line": list(line) if line else None,
         "last_move": game.last_move,
         "vs_bot": game.vs_bot,

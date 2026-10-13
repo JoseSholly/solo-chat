@@ -28,6 +28,17 @@
         </button>
       </div>
 
+      <nav class="sidebar-nav" aria-label="Play">
+        <a class="nav-item" id="nav-games" href="/dashboard/?games">
+          <span class="nav-item-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+                 stroke-linecap="round" aria-hidden="true"><path d="M9.5 4v16M14.5 4v16M4 9.5h16M4 14.5h16"/></svg>
+          </span>
+          <span class="nav-item-label">Games</span>
+          <span id="games-badge"></span>
+        </a>
+      </nav>
+
       <div class="sidebar-label"><span>Rooms</span><span class="mono" id="room-count"></span></div>
       <nav class="room-list" id="room-list" aria-label="Your rooms"></nav>
 
@@ -108,5 +119,6 @@
   <script src="{% static 'js/messages.js' %}"></script>
   <script src="{% static 'js/composer.js' %}"></script>
   <script src="{% static 'js/room.js' %}"></script>
+  <script src="{% static 'js/games.js' %}"></script>
 </body>
 </html>

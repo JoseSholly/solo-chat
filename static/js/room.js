@@ -547,9 +547,16 @@ class RoomPanel {
       const joined = p.date_joined
         ? new Date(p.date_joined).toLocaleDateString([], { year: 'numeric', month: 'long' })
         : '';
+      const g = p.game_stats;
+      const played = g && (g.wins + g.losses + g.draws);
       modal.querySelector('[data-body]').innerHTML = `
         ${p.bio ? `<p class="profile-card-bio">${escHtml(p.bio)}</p>` : ''}
-        ${joined ? `<p class="profile-card-meta">Member since ${escHtml(joined)}</p>` : ''}`;
+        ${joined ? `<p class="profile-card-meta">Member since ${escHtml(joined)}</p>` : ''}
+        ${played ? `<p class="profile-card-meta">Tic-Tac-Toe · ${g.wins} won · ${g.losses} lost · ${g.draws} drawn</p>` : ''}
+        ${!isOwn && p.username ? `<button type="button" class="btn btn-secondary btn-full" data-challenge>Challenge to Tic-Tac-Toe</button>` : ''}`;
+      modal.querySelector('[data-challenge]')?.addEventListener('click', async (e) => {
+        if (await challengePlayer(p.username, e.currentTarget)) layer.close();   // games.js
+      });
     };
 
     if (isOwn) { fill(this.me); return; }

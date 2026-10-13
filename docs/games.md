@@ -16,7 +16,7 @@ Solo-Chat has a **Games** section next to your rooms. The first game is **Tic-Ta
 1. Open **Games** at the top of the sidebar (or **Play Tic-Tac-Toe** on the dashboard's welcome screen). The address becomes `/dashboard/?games`.
 2. Pick an opponent: challenge someone, use **Quick match**, or **Play vs Bot**.
 3. The board opens at `/dashboard/?game=<id>`. X always moves first. Take turns until someone gets three in a row or the board fills up.
-4. When the game ends you can play a **Rematch** or go back to the **Lobby**. You can also **Resign** at any point; it counts as a loss.
+4. When the game ends you can play a **Rematch** or go **Back to games**. You can also **Resign** at any point; it counts as a loss.
 
 Games in progress are listed in the lobby under **Games in progress**, so you can leave and come back with **Resume**.
 

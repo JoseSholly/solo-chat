@@ -1642,6 +1642,12 @@ textarea.input { height: auto; min-height: 96px; padding: var(--s-3) var(--s-4);
 .player-chip-mark .mark { width: 22px; height: 22px; stroke-width: 11; }
 .player-chip.is-turn .player-chip-mark { animation: pulse-soft 1.6s var(--ease-in-out) infinite; }
 
+.match-intro { text-align: center; }
+.match-intro-players { display: flex; flex-direction: column; align-items: stretch; gap: var(--s-2); margin: var(--s-5) 0; }
+.match-intro-players .player-chip { max-width: none; }
+.match-intro-players .game-vs { align-self: center; }
+.match-intro-count { font-size: var(--fs-lg); color: var(--text-2); font-variant-numeric: tabular-nums; min-height: 1.5em; }
+
 .game-status {
   min-height: 1.5em;
   font-size: var(--fs-lg);

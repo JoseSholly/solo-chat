@@ -81,6 +81,67 @@ function openGame(id, { push = true } = {}) {
   _activePanel = new GameBoard(id, document.getElementById('main-panel'));
 }
 
+// Quick match found someone: a modal shows who's playing and counts down before the board opens.
+const MATCH_INTRO_SECONDS = 3;
+let _matchIntroId = null;
+
+async function openMatchIntro(gameId, game = null) {
+  if (_matchIntroId === gameId) return;
+  _matchIntroId = gameId;
+  if (!game) {
+    const res = await apiFetch(`/api/games/${gameId}/`);
+    game = res.ok ? await res.json().catch(() => null) : null;
+    if (!game) { _matchIntroId = null; openGame(gameId); return; }   // the board can show what's wrong
+  }
+
+  const me = getUser();
+  const chip = (sym) => {
+    const p = game.players[sym];
+    const you = p.username === me?.username;
+    const av = p.is_bot
+      ? `<span class="avatar avatar--lg bot-avatar" aria-hidden="true">${GAME_ICON}</span>`
+      : avatarHtml({ name: p.display_name, url: p.avatar_url, size: 'lg' });
+    return `
+      <div class="player-chip player-chip--${sym.toLowerCase()}">
+        ${av}
+        <span class="player-chip-text">
+          <span class="player-chip-name truncate">${escHtml(you ? 'You' : (p.display_name || p.username))}</span>
+          <span class="player-chip-meta">${p.is_bot ? 'Computer' : '@' + escHtml(p.username)}</span>
+        </span>
+        <span class="player-chip-mark" aria-label="plays ${sym}">${MARK_SVG[sym]}</span>
+      </div>`;
+  };
+
+  let timer = null;
+  const titleId = 'mi-' + Math.random().toString(36).slice(2, 8);
+  const { modal, layer } = createModal({
+    size: 'sm',
+    labelledBy: titleId,
+    cls: 'match-intro',
+    // Closing early (Escape, backdrop) just skips the wait.
+    onClose: () => {
+      clearTimeout(timer);
+      _matchIntroId = null;
+      openGame(gameId);
+    },
+    html: `
+      <h2 class="modal-title" id="${titleId}">Match found!</h2>
+      <div class="match-intro-players">${chip('X')}<span class="game-vs" aria-hidden="true">vs</span>${chip('O')}</div>
+      <p class="match-intro-count" role="status" aria-live="polite"></p>`,
+  });
+  announce('Match found');
+
+  const count = modal.querySelector('.match-intro-count');
+  let left = MATCH_INTRO_SECONDS;
+  const tick = () => {
+    if (left <= 0) { layer.close('start'); return; }
+    count.textContent = `Game starts in ${left}…`;
+    left--;
+    timer = setTimeout(tick, 1000);
+  };
+  tick();
+}
+
 // ── Actions shared by the lobby, the board and room profile cards ───────────
 
 async function challengePlayer(username, btn) {
@@ -227,8 +288,7 @@ const Games = {
   _onMatchFound(msg) {
     if (_activePanel instanceof GameBoard && _activePanel.id === msg.game_id) return;
     if (_activePanel instanceof GamesLobby) _activePanel.matched = true;
-    showToast('Match found!');
-    openGame(msg.game_id);
+    openMatchIntro(msg.game_id);
   },
 };
 
@@ -501,7 +561,7 @@ class GamesLobby {
     if (this._destroyed || !this.queued) return;
     if (res.status === 200 && data.status === 'matched') {
       this.matched = true;
-      openGame(data.game.id);
+      openMatchIntro(data.game.id, data.game);
       return;
     }
     if (!res.ok) { this._hideSearching(); showToast('Quick match is unavailable right now.', 'error'); return; }
@@ -919,7 +979,7 @@ class GameBoard {
         <p class="game-result-title">${head}</p>
         <p class="game-result-sub">${escHtml(sub)}</p>
         <div class="game-result-actions">
-          <button type="button" class="btn btn-ghost btn-sm" data-act="lobby">Lobby</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-act="lobby">Back to games</button>
           <button type="button" class="btn btn-primary btn-sm" data-act="rematch">Rematch</button>
         </div>
       </div>`;

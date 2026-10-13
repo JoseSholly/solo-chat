@@ -63,10 +63,23 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
 class UserPublicProfileSerializer(serializers.ModelSerializer):
     avatar_url = serializers.SerializerMethodField()
+    game_stats = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["username", "display_name", "avatar_url", "bio", "date_joined"]
+        fields = [
+            "username",
+            "display_name",
+            "avatar_url",
+            "bio",
+            "date_joined",
+            "game_stats",
+        ]
+
+    def get_game_stats(self, obj):
+        from games.services import GameService
+
+        return GameService.stats(obj)
 
     def get_avatar_url(self, obj):
         if not obj.avatar:

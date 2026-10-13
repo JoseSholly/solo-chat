@@ -15,6 +15,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # API
     path("api/auth/", include("accounts.urls")),
+    path("api/games/", include("games.urls")),
     path("api/", include("chat.urls")),
     # Pages
     path("", TemplateView.as_view(template_name="landing.html"), name="page-landing"),

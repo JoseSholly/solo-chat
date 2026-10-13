@@ -1,7 +1,9 @@
 /* Dashboard shell — sidebar, room list, unread notifications, navigation.
-   Depends on api.js, auth.js, ui.js. room.js provides loadRoomPanel(). */
+   Depends on api.js, auth.js, ui.js. room.js provides loadRoomPanel();
+   games.js provides openGames(), openGame() and Games (called at runtime). */
 
 let _activeSlug = null;
+let _stageTitle = null;     // set by panels that aren't rooms (games.js)
 const _rooms = new Map();   // slug → room, in the shape /api/dashboard/ returns
 
 const _app = () => document.getElementById('app');
@@ -17,7 +19,8 @@ function updateTitle() {
     .filter(r => r.slug !== _activeSlug)
     .reduce((n, r) => n + (r.unread_count || 0), 0);
   const active = _activeSlug && _rooms.get(_activeSlug);
-  const base   = active ? `${active.name} — Solo-Chat` : 'Solo-Chat';
+  const label  = active ? active.name : _stageTitle;
+  const base   = label ? `${label} — Solo-Chat` : 'Solo-Chat';
   document.title = unread ? `(${unread}) ${base}` : base;
 }
 
@@ -348,6 +351,11 @@ const Notifications = {
       this.attempts = 0;
       this.dead = false;
       this._setMark('live');
+      // The heartbeat is what keeps us listed as online for games.
+      clearInterval(this.pingTimer);
+      this.pingTimer = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
+      }, 30000);
       // Anything that happened while we were away: sync once.
       if (this._dropped) RoomList.reconcileSoon(0);
     };
@@ -359,9 +367,11 @@ const Notifications = {
         RoomList.bump(String(msg.room_slug));
         RoomList.reconcileSoon();
       }
+      if (msg.type?.startsWith('game_') || msg.type === 'match_found') Games.onNotification(msg);   // games.js
     };
 
     ws.onclose = async (e) => {
+      clearInterval(this.pingTimer);
       this._setMark('offline');
       this._dropped = true;
       if (e.code === 4001 && !this._authRetried) {
@@ -401,6 +411,7 @@ function showEmptyPanel() {
       <p class="stage-empty-body">Choose a room on the left. Anything new shows up there the moment it's sent.</p>
       <div class="stage-empty-actions">
         <button class="btn btn-secondary" type="button" data-new-room>${icon('plus', 16)} New room</button>
+        <button class="btn btn-ghost" type="button" data-open-games>Play Tic-Tac-Toe</button>
       </div>
     </div>` : `
     <div class="stage-empty">
@@ -408,6 +419,7 @@ function showEmptyPanel() {
       <p class="stage-empty-body">Rooms are private: only people with the invite link can join. Talk in text, images and voice notes, and everyone sees it as it happens.</p>
       <div class="stage-empty-actions">
         <button class="btn btn-primary" type="button" data-new-room>${icon('plus', 16)} New room</button>
+        <button class="btn btn-ghost" type="button" data-open-games>Play Tic-Tac-Toe</button>
       </div>
     </div>`;
   updateTitle();
@@ -419,6 +431,8 @@ function selectRoom(room, { push = true } = {}) {
   if (room.slug === _activeSlug && _activePanel) return;
 
   _activeSlug = room.slug;
+  _stageTitle = null;
+  setGamesNavActive(false);
   RoomList.setActive(room.slug);
   RoomList.clearUnread(room.slug);
   _app().classList.add('room-open');
@@ -430,16 +444,26 @@ function selectRoom(room, { push = true } = {}) {
 function closeRoom({ push = true } = {}) {
   destroyActivePanel();
   _activeSlug = null;
+  _stageTitle = null;
+  setGamesNavActive(false);
   RoomList.setActive(null);
   if (push) history.pushState({}, '', '/dashboard/');
   showEmptyPanel();
 }
 
-// Browser back/forward moves between rooms (and back to the list on mobile).
+// Browser back/forward moves between rooms and games (and back to the list on mobile).
+function routeFromUrl() {
+  const params = new URLSearchParams(location.search);
+  const slug = params.get('room');
+  const game = params.get('game');
+  if (game) { openGame(game, { push: false }); return true; }          // games.js
+  if (params.has('games')) { openGames({ push: false }); return true; }
+  if (slug && _rooms.has(slug)) { selectRoom(_rooms.get(slug), { push: false }); return true; }
+  return false;
+}
+
 window.addEventListener('popstate', () => {
-  const slug = new URLSearchParams(location.search).get('room');
-  if (slug && _rooms.has(slug)) selectRoom(_rooms.get(slug), { push: false });
-  else closeRoom({ push: false });
+  if (!routeFromUrl()) closeRoom({ push: false });
 });
 
 // ── New room ─────────────────────────────────────────────────────────────────
@@ -521,18 +545,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   document.getElementById('main-panel').addEventListener('click', (e) => {
     if (e.target.closest('[data-new-room]')) NewRoom.open();
+    if (e.target.closest('[data-open-games]')) openGames();
   });
+
+  Games.init();   // games.js
 
   await RoomList.load();
   Notifications.connect();
 
-  // Open the room in the URL (e.g. arriving from an invite link)
-  const slug = new URLSearchParams(location.search).get('room');
-  if (slug && _rooms.has(slug)) {
-    history.replaceState({ slug }, '');
-    selectRoom(_rooms.get(slug), { push: false });
-  } else {
-    if (slug) history.replaceState({}, '', '/dashboard/');
+  // Open the room or game in the URL (e.g. arriving from an invite link)
+  if (!routeFromUrl()) {
+    if (location.search) history.replaceState({}, '', '/dashboard/');
     showEmptyPanel();
   }
 });

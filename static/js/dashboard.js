@@ -324,77 +324,34 @@ const RoomList = {
 
 // ── Notification socket: unread pushes for rooms you're not looking at ──────
 
+// One per tab. Its heartbeat (LiveSocket's ping) is also what keeps you
+// listed as online for games: the server refreshes your presence on each one.
 const Notifications = {
-  ws: null,
-  timer: null,
-  attempts: 0,
-  dead: false,
-  _dropped: false,
-  _authRetried: false,
+  socket: null,
 
   _setMark(state) {
     const mark = document.getElementById('notif-mark');
     if (!mark) return;
-    mark.dataset.state = state;
-    mark.title = state === 'live' ? 'Live updates connected' : 'Live updates paused — reconnecting';
+    const live = state === 'live' || state === 'connecting';
+    mark.dataset.state = live ? 'live' : 'offline';
+    mark.title = live ? 'Live updates connected' : 'Live updates paused — reconnecting';
   },
 
   connect() {
-    clearTimeout(this.timer);
-    if (this.ws) { this.ws.onclose = null; this.ws.close(); }
-
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${proto}://${location.host}/ws/notifications/?token=${getAccessToken()}`);
-    this.ws = ws;
-
-    ws.onopen = () => {
-      this.attempts = 0;
-      this.dead = false;
-      this._setMark('live');
-      // The heartbeat is what keeps us listed as online for games.
-      clearInterval(this.pingTimer);
-      this.pingTimer = setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'ping' }));
-      }, 30000);
-      // Anything that happened while we were away: sync once.
-      if (this._dropped) RoomList.reconcileSoon(0);
-    };
-
-    ws.onmessage = (e) => {
-      let msg;
-      try { msg = JSON.parse(e.data); } catch { return; }
-      if (msg.type === 'unread_update' && msg.room_slug !== _activeSlug) {
-        RoomList.bump(String(msg.room_slug));
-        RoomList.reconcileSoon();
-      }
-      if (msg.type?.startsWith('game_') || msg.type === 'match_found') Games.onNotification(msg);   // games.js
-    };
-
-    ws.onclose = async (e) => {
-      clearInterval(this.pingTimer);
-      this._setMark('offline');
-      this._dropped = true;
-      if (e.code === 4001 && !this._authRetried) {
-        this._authRetried = true;
-        if (await _tryRefresh()) { this.connect(); return; }
-      }
-      if (this.attempts >= 6) { this.dead = true; return; }
-      const delay = Math.min(1000 * 2 ** this.attempts, 15000);
-      this.attempts++;
-      this.timer = setTimeout(() => this.connect(), delay);
-    };
-  },
-
-  // Called when the network or tab comes back after we gave up.
-  revive() {
-    if (!this.dead) return;
-    this.attempts = 0;
-    this.connect();
+    this.socket = new LiveSocket('/ws/notifications/', {   // socket.js
+      onState: (state) => this._setMark(state),
+      // Anything that happened while the line was down: sync once.
+      onOpen: ({ restored }) => { if (restored) RoomList.reconcileSoon(0); },
+      onMessage: (msg) => {
+        if (msg.type === 'unread_update' && msg.room_slug !== _activeSlug) {
+          RoomList.bump(String(msg.room_slug));
+          RoomList.reconcileSoon();
+        }
+        if (msg.type?.startsWith('game_') || msg.type === 'match_found') Games.onNotification(msg);   // games.js
+      },
+    });
   },
 };
-
-window.addEventListener('online', () => Notifications.revive());
-document.addEventListener('visibilitychange', () => { if (!document.hidden) Notifications.revive(); });
 
 // ── Navigation ───────────────────────────────────────────────────────────────
 

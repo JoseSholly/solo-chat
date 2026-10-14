@@ -1,4 +1,5 @@
 import json
+import logging
 from urllib.parse import parse_qs
 
 from channels.db import database_sync_to_async
@@ -10,6 +11,8 @@ from games.services import PresenceService
 
 from .events import UserJoinedRoom, UserLeftRoom, event_bus
 from .services import MessageService, RoomService
+
+logger = logging.getLogger(__name__)
 
 
 def _authenticate_from_scope(scope):
@@ -25,6 +28,63 @@ def _authenticate_from_scope(scope):
         return User.objects.get(id=payload["user_id"])
     except (InvalidToken, TokenError, KeyError, Exception):
         return None
+
+
+# ---------------------------------------------------------------------------
+# Base for the authenticated sockets: heartbeat + never die on bad input
+# ---------------------------------------------------------------------------
+
+
+class LiveConsumer(AsyncWebsocketConsumer):
+    """Answers the browser's heartbeat and keeps the line open when a message
+    is malformed or handling it fails.
+
+    The browser (static/js/socket.js) sends {"type": "ping"} every 20 s and
+    reconnects if it hears nothing back for 45 s; the pong is that answer, and
+    the traffic stops proxies from cutting the line as idle. An exception in a
+    consumer would otherwise close the socket and start a reconnect loop, so
+    it's logged and reported to the browser instead.
+
+    Subclasses implement receive_message(data) and, optionally, on_ping().
+    """
+
+    async def receive(self, text_data=None, bytes_data=None):
+        try:
+            data = json.loads(text_data or "")
+        except ValueError:
+            return
+        if not isinstance(data, dict):
+            return
+        try:
+            if data.get("type") == "ping":
+                await self.send(text_data=json.dumps({"type": "pong"}))
+                await self.on_ping()
+            else:
+                await self.receive_message(data)
+        except Exception:
+            logger.exception("%s: error handling a message", type(self).__name__)
+            await self.send(
+                text_data=json.dumps(
+                    {
+                        "type": "error",
+                        "error": "Something went wrong on our side. Try again.",
+                        "code": "server_error",
+                    }
+                )
+            )
+
+    async def receive_message(self, data: dict):
+        pass
+
+    async def on_ping(self):
+        pass
+
+    async def reject(self, code: int):
+        # Accept, then close: closing before accept() refuses the handshake, and
+        # the browser only sees a generic 1006, never our code. With the code
+        # it can tell "token expired" (refresh and retry) from "not allowed".
+        await self.accept()
+        await self.close(code=code)
 
 
 # ---------------------------------------------------------------------------
@@ -87,22 +147,22 @@ class ChatConsumer(AsyncWebsocketConsumer):
 # ---------------------------------------------------------------------------
 
 
-class RoomChatConsumer(AsyncWebsocketConsumer):
+class RoomChatConsumer(LiveConsumer):
     async def connect(self):
         slug = self.scope["url_route"]["kwargs"]["slug"]
 
         self.user = await database_sync_to_async(_authenticate_from_scope)(self.scope)
         if self.user is None:
-            await self.close(code=4001)
+            await self.reject(4001)
             return
 
         self.room = await self._get_room(slug)
         if self.room is None:
-            await self.close(code=4004)
+            await self.reject(4004)
             return
 
         if not await self._is_member():
-            await self.close(code=4003)
+            await self.reject(4003)
             return
 
         self.group_name = f"room_{self.room.id}"
@@ -132,8 +192,7 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
             )
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
 
-    async def receive(self, text_data):
-        data = json.loads(text_data)
+    async def receive_message(self, data):
         message_type = data.get("type", "text")
 
         # Text goes through the service, which emits MessageCreated.
@@ -190,11 +249,11 @@ class RoomChatConsumer(AsyncWebsocketConsumer):
 # ---------------------------------------------------------------------------
 
 
-class NotificationConsumer(AsyncWebsocketConsumer):
+class NotificationConsumer(LiveConsumer):
     async def connect(self):
         self.user = await database_sync_to_async(_authenticate_from_scope)(self.scope)
         if self.user is None:
-            await self.close(code=4001)
+            await self.reject(4001)
             return
 
         self.group_name = f"user_{self.user.id}"
@@ -207,14 +266,9 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_discard(self.group_name, self.channel_name)
             await database_sync_to_async(PresenceService.disconnect)(self.user)
 
-    async def receive(self, text_data):
-        # The only thing a client sends is a heartbeat that keeps it online.
-        try:
-            data = json.loads(text_data)
-        except ValueError:
-            return
-        if data.get("type") == "ping":
-            await database_sync_to_async(PresenceService.heartbeat)(self.user)
+    async def on_ping(self):
+        # The heartbeat is also what keeps this user listed as online.
+        await database_sync_to_async(PresenceService.heartbeat)(self.user)
 
     async def unread_update(self, event):
         await self.send(

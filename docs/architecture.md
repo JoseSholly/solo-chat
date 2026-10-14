@@ -132,6 +132,34 @@ Moves go over the per-game socket. `GameService.move` takes the game row with `s
 
 Quick match pairs two waiting players by deleting the other player's queue row: `DELETE` returns the row count, so if two requests race for the same opponent only one of them deletes it and gets the match. That works the same on SQLite and PostgreSQL. More detail is in [Games](games.md).
 
+## Keeping connections alive
+
+A WebSocket is a single TCP connection that stays open, so the server can push to the browser at any time. In this stack:
+
+- **Daphne** (the ASGI server, started in `entrypoint.sh`) holds the open connections.
+- **Channels** routes each one (`config/asgi.py` → `chat/routing.py`) to a **consumer** instance that lives as long as the connection: `connect()` once, `receive()` per message, `disconnect()` at the end.
+- **The channel layer** (Redis) lets a consumer reach other people's connections through groups (`room_{id}`, `user_{id}`, `game_{id}`), even across processes.
+
+A connection can't be made permanent. Deploys restart the container, Railway's edge proxy recycles connections (users report cuts from seconds to about an hour, even with pings), laptops sleep, phones switch networks, and Daphne caps connection age unless told not to. So the goal is resilience: notice a dead line quickly, reconnect quietly, and catch up on what was missed.
+
+**Server side**
+
+- Daphne sends protocol-level WebSocket pings every 15 s and drops the connection after 30 s without a pong (`--ping-interval 15 --ping-timeout 30`). The 24 h cap on connection age is off (`--websocket_timeout -1`).
+- Every authenticated consumer extends `LiveConsumer` (`chat/consumers.py`), which:
+  - answers the browser's `{"type": "ping"}` with `{"type": "pong"}`;
+  - ignores malformed frames;
+  - turns an exception in a handler into a `server_error` message instead of closing the socket (a closed socket would reconnect and hit the same error, in a loop).
+- Refusals call `reject(code)`: accept, then close with `4001` / `4003` / `4004`. Closing before `accept()` would refuse the handshake, and the browser would only ever see `1006`, so it couldn't tell "token expired" from "network blip".
+
+**Browser side: `static/js/socket.js` (`LiveSocket`)**, used by the room, notification and game sockets.
+
+- **Heartbeat:** a ping every 20 s keeps traffic flowing through proxies. If nothing at all arrives for 45 s, the line is treated as dead, even if the browser still thinks it's open, and is replaced.
+- **Quiet reconnects:** the header only shows "Reconnecting…" if the line isn't back within 2.5 s, so blips are invisible.
+- **Never gives up:** retries with exponential backoff (0.5 s up to 30 s) plus jitter, so a deploy doesn't make every tab reconnect at the same instant. After a minute it shows "Offline · Retry" but keeps trying. It retries at once when the network comes back or the tab becomes visible, and sends a ping on return to check the line.
+- **Tokens:** before each attempt, an access token that has expired (or is within 30 s of it) is refreshed. A `4001` close refreshes and retries, every time, not once per page. Refreshes are shared (`_tryRefresh` in `api.js`), so two sockets can't spend the same rotating refresh token twice and sign the user out.
+- **Catch-up:** a room that reconnects re-fetches its recent messages, and `MessageList.append` skips ids it has already shown. The game socket gets the full board on every connect, and the notification socket triggers a room-list sync.
+- **Diagnosis:** every close is logged to the browser console as `[socket] <path> closed: code N`. `1006` means the line was cut without a goodbye (proxy, network or crash), `1011` means a server error, and `4xxx` codes are ours.
+
 ## Unread count design
 
 `RoomMembership.last_seen` is updated to `timezone.now()` in two places: when a user opens a room (`GET /api/rooms/<slug>/` → `RoomService.update_last_seen`), and automatically for the sender of every new message via the `post_save(Message)` signal receiver.
@@ -151,7 +179,8 @@ api.js          — apiFetch() wrapper; intercepts 401, silently refreshes token
 auth.js         — authSignup / authLogin / authLogout
 auth-guard.js   — Redirects unauthenticated users to /login/ on page load
 ui.js           — Shared UI primitives: icons, avatars, time formatting, modals/drawers, menus
-dashboard.js    — Sidebar, room list, notification socket (+ presence heartbeat), new-room modal, URL routing
+socket.js       — LiveSocket: heartbeat, dead-line detection, quiet reconnect with backoff, token refresh
+dashboard.js    — Sidebar, room list, notification socket, new-room modal, URL routing
 messages.js     — MessageList: timeline rendering, grouping, media, voice playback
 composer.js     — Composer: text input, uploads with progress, voice recording
 room.js         — RoomPanel class — owns the room WebSocket, presence, details drawer

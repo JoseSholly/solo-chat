@@ -118,6 +118,31 @@ Errors use the same `{ "error", "code" }` shape as the rest of the API:
 
 ## WebSocket — `ws/`
 
+### Shared by every socket
+
+All three sockets (chat, notifications, game) are opened by `static/js/socket.js` (`LiveSocket`) and served by consumers built on `LiveConsumer` (`chat/consumers.py`). They share:
+
+```jsonc
+// Heartbeat: the browser sends this every 20 s…
+{ "type": "ping" }
+// …and the server answers straight away. No pong for 45 s = the line is dead; the browser reconnects.
+{ "type": "pong" }
+
+// A message the server couldn't handle. The socket stays open.
+{ "type": "error", "error": "Something went wrong on our side. Try again.", "code": "server_error" }
+```
+
+Malformed frames (not JSON, or not an object) are ignored; they don't close the socket.
+
+**Close codes.** Refusals accept the connection and then close it with a code, because closing before `accept()` refuses the handshake and the browser only sees a generic `1006`:
+
+| Code | Meaning | What the browser does |
+|---|---|---|
+| `4001` | Missing, invalid or expired token | Refreshes the token and reconnects |
+| `4003` | Not allowed (not a room member / not a player) | Stops; shows "Can't connect" |
+| `4004` | Room or game does not exist | Stops |
+| anything else (`1006`, `1011`, …) | Network, proxy, deploy or server problem | Reconnects with backoff, forever |
+
 ### Chat — `ws/chat/<room-slug>/?token=<access_token>`
 
 **Send** (client → server):
@@ -151,15 +176,7 @@ Image and voice messages are sent purely via `POST /api/rooms/<slug>/upload/`. T
 { "type": "presence_event", "event": "leave", "display_name": "Bob", "username": "bob" }
 ```
 
-**Close codes:**
-
-| Code | Meaning |
-|---|---|
-| `4001` | Authentication failed or token expired |
-| `4003` | Not a room member |
-| `4004` | Room does not exist |
-
-The client does not attempt reconnection on these codes.
+**Close codes:** see [Shared by every socket](#shared-by-every-socket). After a reconnect the room re-fetches `GET /api/rooms/<slug>/` so messages sent while it was disconnected still appear.
 
 ### Notifications — `ws/notifications/?token=<access_token>`
 
@@ -168,7 +185,8 @@ One per signed-in tab. An open notification socket is also what marks you as **o
 **Send** (client → server):
 
 ```jsonc
-// Heartbeat every 30 s. Without it you drop off the online list after 90 s.
+// The shared heartbeat (every 20 s) also refreshes your presence.
+// Without it you drop off the online list after 90 s.
 { "type": "ping" }
 ```
 
@@ -218,4 +236,4 @@ One socket per player per game. Only the game's two players can connect.
 
 In bot games the server sends two `game_state` events per turn: your move, then (about 0.45 s later) the bot's reply.
 
-**Close codes** are the same as the chat socket: `4001` auth failed, `4003` not a player in this game, `4004` game does not exist.
+**Close codes** are the shared ones: `4001` token refused, `4003` not a player in this game, `4004` game does not exist.

@@ -60,8 +60,12 @@ def test_outsider_is_rejected(alice, bob, carol):
 
     async def scenario():
         c = _ws(carol, f"/ws/games/{game.id}/")
-        connected, code = await c.connect()
-        assert not connected and code == 4003
+        # Accepted, then closed with the code, so a browser can read it.
+        assert (await c.connect())[0]
+        assert await c.receive_output(timeout=2) == {
+            "type": "websocket.close",
+            "code": 4003,
+        }
 
     async_to_sync(scenario)()
 
@@ -181,7 +185,7 @@ def test_notification_socket_tracks_presence_and_delivers_invites(alice, bob):
         b = _ws(bob, "/ws/notifications/")
         assert (await b.connect())[0]
         await b.send_json_to({"type": "ping"})
-        await b.receive_nothing(timeout=0.2)
+        assert await b.receive_json_from(timeout=2) == {"type": "pong"}
 
         game = await database_sync_to_async(GameService.challenge)(alice, "bob")
         invite = await _next(b, "game_invite")

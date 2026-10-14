@@ -1,6 +1,6 @@
 /* Room panel — header, connection, presence, details drawer, and the room's
    WebSocket. Depends on api.js, auth.js, ui.js, dashboard.js, messages.js,
-   composer.js. */
+   composer.js, socket.js. */
 
 let _activePanel = null;
 
@@ -13,20 +13,13 @@ function loadRoomPanel(room) {
   _activePanel = new RoomPanel(room, document.getElementById('main-panel'));
 }
 
-const MAX_RECONNECTS = 6;
-
 class RoomPanel {
   constructor(room, container) {
     this.room      = room;
     this.container = container;
     this.me        = getUser() || {};
 
-    this.ws             = null;
-    this.wsReady        = false;
-    this.reconnectCount = 0;
-    this._reconnectTimer = null;
-    this._authRetried   = false;
-    this._everConnected = false;
+    this.socket         = null;
     this._destroyed     = false;
     this._markSeenTimer = null;
     this._lastRollCall  = 0;
@@ -205,12 +198,6 @@ class RoomPanel {
     this._el.conn.addEventListener('click', (e) => {
       if (e.target.closest('.conn-retry')) this._retryNow();
     });
-
-    // Come back from a lost connection as soon as the network or tab returns
-    this._onOnline     = () => this._retryNow();
-    this._onVisibility = () => { if (!document.hidden) this._retryIfGivenUp(); };
-    window.addEventListener('online', this._onOnline);
-    document.addEventListener('visibilitychange', this._onVisibility);
   }
 
   async _copyInvite(btn, doneHtml) {
@@ -261,72 +248,42 @@ class RoomPanel {
 
   // ── WebSocket ───────────────────────────────────────────────────────────
 
+  // LiveSocket (socket.js) keeps the line alive and reconnects on its own.
   _connectWS() {
+    this.socket = new LiveSocket(`/ws/chat/${this.room.slug}/`, {
+      onState: (state) => {
+        if (state !== 'live') this.composer.setOnline(false);
+        if (state !== 'live') this._setConn(state);
+      },
+      onOpen: ({ restored, noticed }) => {
+        // Presence is rebuilt from scratch on every (re)connect: the roll call
+        // triggered by our own join tells us who is here.
+        this.online.clear();
+        this._renderPresence();
+        this._setConn('live', { restored: noticed });
+        this.composer.setOnline(true);
+        if (restored) this._catchUp();
+      },
+      onMessage: (msg) => {
+        if (msg.type === 'chat_message')   this._onChatMessage(msg);
+        if (msg.type === 'presence_event') this._onPresence(msg);
+      },
+    });
+  }
+
+  get wsReady() { return !!this.socket?.isOpen; }
+
+  _retryNow() { this.socket?.retryNow(); }
+
+  // Messages sent while we were disconnected never reached this socket: fetch
+  // them. MessageList.append skips ids it has already shown.
+  async _catchUp() {
+    if (!this._historyReady) return;
+    const res = await apiFetch(`/api/rooms/${this.room.slug}/`);
+    if (this._destroyed || !res.ok) return;
+    const data = await res.json();
     if (this._destroyed) return;
-    clearTimeout(this._reconnectTimer);
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${proto}://${location.host}/ws/chat/${this.room.slug}/?token=${getAccessToken()}`);
-    this.ws = ws;
-    if (!this._everConnected) this._setConn('connecting');
-
-    ws.onopen = () => {
-      const restored = this._everConnected;
-      this.wsReady = true;
-      this.reconnectCount = 0;
-      this._everConnected = true;
-      // Presence is rebuilt from scratch on every (re)connect: the roll call
-      // triggered by our own join tells us who is here.
-      this.online.clear();
-      this._renderPresence();
-      this._setConn('live', { restored });
-      this.composer.setOnline(true);
-    };
-
-    ws.onmessage = (e) => {
-      let msg;
-      try { msg = JSON.parse(e.data); } catch { return; }
-      if (msg.type === 'chat_message')   this._onChatMessage(msg);
-      if (msg.type === 'presence_event') this._onPresence(msg);
-    };
-
-    ws.onclose = async (e) => {
-      if (this.ws !== ws) return;
-      this.wsReady = false;
-      this.composer.setOnline(false);
-      if (e.code === 4001 && !this._authRetried) {
-        // Access token expired while we were connected: refresh once, retry.
-        this._authRetried = true;
-        if (await _tryRefresh()) { this._connectWS(); return; }
-      }
-      if (e.code === 4001 || e.code === 4003 || e.code === 4004) {
-        this._setConn('denied');
-        return;
-      }
-      this._scheduleReconnect();
-    };
-  }
-
-  _scheduleReconnect() {
-    if (this.reconnectCount >= MAX_RECONNECTS) {
-      this._setConn('offline');
-      return;
-    }
-    const delay = Math.min(1000 * 2 ** this.reconnectCount, 12000);
-    this.reconnectCount++;
-    this._setConn('reconnecting');
-    this._reconnectTimer = setTimeout(() => this._connectWS(), delay);
-  }
-
-  _retryNow() {
-    if (this._destroyed || this.wsReady) return;
-    if (this.ws) { this.ws.onclose = null; this.ws.close(); }
-    this.reconnectCount = 0;
-    this._setConn('reconnecting');
-    this._connectWS();
-  }
-
-  _retryIfGivenUp() {
-    if (this._el.conn.dataset.state === 'offline') this._retryNow();
+    data.messages.forEach((m) => this.messages.append(m, { live: true }));
   }
 
   _setConn(state, { restored = false } = {}) {
@@ -361,8 +318,7 @@ class RoomPanel {
 
   _sendText(content) {
     if (!this.wsReady) return false;
-    this.ws.send(JSON.stringify({ type: 'text', content }));
-    return true;
+    return this.socket.send({ type: 'text', content });
   }
 
   _onChatMessage(msg) {
@@ -410,7 +366,7 @@ class RoomPanel {
     const now = Date.now();
     if (!this.wsReady || now - this._lastRollCall < 1500) return;
     this._lastRollCall = now;
-    this.ws.send(JSON.stringify({ type: 'here' }));
+    this.socket.send({ type: 'here' });
   }
 
   _renderPresence() {
@@ -699,17 +655,11 @@ class RoomPanel {
     this._profileLayer?.close();
     this._drawer?.close();
     clearTimeout(this._markSeenTimer);
-    clearTimeout(this._reconnectTimer);
     clearTimeout(this._connFlashTimer);
     this._membersObserver?.disconnect();
-    window.removeEventListener('online', this._onOnline);
-    document.removeEventListener('visibilitychange', this._onVisibility);
     this.messages?.destroy();
     this.composer?.destroy();
-    if (this.ws) {
-      this.ws.onclose = null;
-      this.ws.close();
-      this.ws = null;
-    }
+    this.socket?.close();
+    this.socket = null;
   }
 }

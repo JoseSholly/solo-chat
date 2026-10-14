@@ -51,6 +51,7 @@ solo-chat/
 │       ├── test_events_bus.py
 │       ├── test_events_signals.py
 │       ├── test_events_handlers.py
+│       ├── test_live_sockets.py  # ping/pong, bad frames, close codes on every socket
 │       ├── test_repositories.py
 │       ├── test_services.py
 │       ├── test_storages.py
@@ -90,6 +91,7 @@ solo-chat/
 │   ├── css/style.css         # Single stylesheet — dark theme, all pages (section 10: games)
 │   ├── icons/ · manifest.webmanifest
 │   └── js/                   # One file per feature — see Architecture → Frontend architecture
+│       ├── socket.js         # LiveSocket — every WebSocket: heartbeat, reconnect, token refresh
 │       └── games.js          # Games lobby, board, invites, Quick match
 │
 ├── docs/                     # This documentation

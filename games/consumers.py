@@ -3,9 +3,8 @@ import json
 import logging
 
 from channels.db import database_sync_to_async
-from channels.generic.websocket import AsyncWebsocketConsumer
 
-from chat.consumers import _authenticate_from_scope
+from chat.consumers import LiveConsumer, _authenticate_from_scope
 
 from .serializers import game_state
 from .services import GameError, GameService, SeatService
@@ -15,7 +14,7 @@ logger = logging.getLogger(__name__)
 BOT_THINK_SECONDS = 0.45  # long enough to read as a turn, short enough not to drag
 
 
-class GameConsumer(AsyncWebsocketConsumer):
+class GameConsumer(LiveConsumer):
     """One socket per player per game. Moves, resigning and presence go
     through here; challenges and matchmaking are REST + notifications."""
 
@@ -26,15 +25,15 @@ class GameConsumer(AsyncWebsocketConsumer):
 
         self.user = await database_sync_to_async(_authenticate_from_scope)(self.scope)
         if self.user is None:
-            await self.close(code=4001)
+            await self.reject(4001)
             return
 
         game = await database_sync_to_async(GameService.get)(self.game_id)
         if game is None:
-            await self.close(code=4004)
+            await self.reject(4004)
             return
         if not game.is_player(self.user):
-            await self.close(code=4003)
+            await self.reject(4003)
             return
 
         self.group_name = f"game_{self.game_id}"
@@ -60,11 +59,7 @@ class GameConsumer(AsyncWebsocketConsumer):
         if claim_in is not None:
             await self._presence("leave", left=self.leaving, claim_in=claim_in)
 
-    async def receive(self, text_data):
-        try:
-            data = json.loads(text_data)
-        except ValueError:
-            return
+    async def receive_message(self, data):
         kind = data.get("type")
 
         if kind == "move":

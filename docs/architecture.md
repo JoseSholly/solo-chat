@@ -99,7 +99,7 @@ Today there is exactly one:
 RoomDashboardRepository.get_user_dashboard(user) -> DashboardData
 ```
 
-It encapsulates the three-subquery aggregate that powers the dashboard (latest message per room, member count, unread count) and returns a `DashboardData` dataclass so the view is just a thin call site.
+It encapsulates the aggregate that powers the dashboard and returns a `DashboardData` dataclass so the view is just a thin call site. Everything per room (member count, the user's `last_seen`, unread count, latest message id) is computed inside **one** rooms query with correlated subqueries, and a second query loads the latest messages: two round trips however many rooms there are.
 
 ## Event architecture
 
@@ -162,13 +162,13 @@ A connection can't be made permanent. Deploys restart the container, Railway's e
 
 ## Database connections
 
-Under ASGI, Django runs synchronous code (views, `database_sync_to_async` in consumers) on worker threads, and Django's docs advise against persistent connections (`CONN_MAX_AGE`) there. Production uses Django's built-in **connection pool** instead (psycopg 3, Django 5.1+). A request borrows an open connection and returns it when done, so it never pays connection setup, which matters when the database is in another city. Settings and measurements are in [Deployment → Performance](deployment.md#performance).
+Under ASGI, Django runs synchronous code (views, `database_sync_to_async` in consumers) on worker threads, and Django's docs advise against persistent connections (`CONN_MAX_AGE`) there. Production uses Django's built-in **connection pool** instead (psycopg 3, Django 5.1+). A request borrows an open connection and returns it when done, so it never pays connection setup. That matters because the database is in another region and every round trip costs ~100 ms. The same reasoning drives the rest of the request path: the signed-in user is cached (`accounts/authentication.py`, cleared on every change), and hot endpoints are written to need as few queries as possible. Details and measurements are in [Deployment → Performance](deployment.md#performance).
 
 ## Unread count design
 
 `RoomMembership.last_seen` is updated to `timezone.now()` in two places: when a user opens a room (`GET /api/rooms/<slug>/` → `RoomService.update_last_seen`), and automatically for the sender of every new message via the `post_save(Message)` signal receiver.
 
-The dashboard endpoint delegates to `RoomDashboardRepository.get_user_dashboard(user)`, which resolves memberships, latest-message-per-room, member counts, and unread counts in **three queries total** (a subquery-annotated room fetch, a batched last-message fetch, and a subquery-based unread aggregation) — not N+1.
+The dashboard endpoint delegates to `RoomDashboardRepository.get_user_dashboard(user)`, which resolves memberships, latest-message-per-room, member counts, and unread counts in **two queries total** (one subquery-annotated room fetch that includes the unread count, and a batched last-message fetch) — not N+1.
 
 When a member sends a message, the `MessageCreated` event fans out to two handlers: one broadcasts the message to the room group, the other pushes an `unread_update` to every other member's `user_{id}` channel group. The `NotificationConsumer` relays those to browsers, which increment the sidebar badge — no polling required.
 

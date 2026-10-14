@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.db.models import Count, OuterRef, Subquery
 from django.utils import timezone
 
 from chat.events import LastSeenUpdated, RoomCreated, event_bus
@@ -23,6 +24,35 @@ class RoomService:
             return Room.objects.get(slug=slug)
         except Room.DoesNotExist:
             return None
+
+    @staticmethod
+    def get_with_membership(user, slug) -> tuple[Room | None, RoomMembership | None]:
+        """The room, the user's membership in it and the member count, in one
+        query when the user is a member (a second only when they aren't).
+
+        Every query is a round trip to the database, so views that need the
+        room *and* a membership check use this instead of two lookups. The
+        room comes back with `member_total` and its creator already loaded.
+        Returns (room, None) for a non-member and (None, None) for no room.
+        """
+        total = (
+            RoomMembership.objects.filter(room=OuterRef("room_id"))
+            .order_by()
+            .values("room")
+            .annotate(c=Count("pk"))
+            .values("c")
+        )
+        membership = (
+            RoomMembership.objects.filter(user=user, room__slug=slug)
+            .select_related("room", "room__creator")
+            .annotate(member_total=Subquery(total))
+            .first()
+        )
+        if membership is not None:
+            room = membership.room
+            room.member_total = membership.member_total
+            return room, membership
+        return RoomService.get_by_slug(slug), None
 
     @staticmethod
     def create(user, name: str, description: str = "") -> Room:

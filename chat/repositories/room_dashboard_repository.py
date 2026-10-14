@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
-from django.db.models import Count, OuterRef, Subquery
+from django.db.models import Count, Exists, OuterRef, Subquery
+from django.db.models.functions import Coalesce
 
 from chat.models import Message, Room, RoomMembership
 
@@ -8,34 +9,49 @@ from chat.models import Message, Room, RoomMembership
 @dataclass
 class DashboardData:
     rooms: list = field(default_factory=list)
-    membership_map: dict = field(default_factory=dict)
     last_message_map: dict = field(default_factory=dict)
-    unread_data: dict = field(default_factory=dict)
+    unread_data: dict = field(default_factory=dict)  # only rooms with unread messages
 
 
 class RoomDashboardRepository:
     @staticmethod
     def get_user_dashboard(user) -> DashboardData:
-        memberships = list(RoomMembership.objects.filter(user=user))
-        if not memberships:
-            return DashboardData()
+        """The user's rooms with member count, latest message and unread count.
 
-        membership_map = {m.room_id: m for m in memberships}
-        room_ids = list(membership_map.keys())
-
-        latest_msg_sq = Subquery(
-            Message.objects.filter(room_id=OuterRef("pk"))
+        Two queries, however many rooms there are. Each query is a round trip
+        to the database, so everything that can be computed per room is
+        computed inside the first one:
+          1. rooms, with member count, latest message id, the user's own
+             `last_seen` and the number of messages after it;
+          2. the latest message of each room, with its sender.
+        """
+        mine = RoomMembership.objects.filter(user=user, room=OuterRef("pk"))
+        latest_message = (
+            Message.objects.filter(room=OuterRef("pk"))
             .order_by("-timestamp")
             .values("id")[:1]
         )
+        unread = (
+            Message.objects.filter(
+                room=OuterRef("pk"), timestamp__gt=OuterRef("my_last_seen")
+            )
+            .order_by()
+            .values("room")
+            .annotate(c=Count("pk"))
+            .values("c")
+        )
         rooms = list(
-            Room.objects.filter(id__in=room_ids)
+            Room.objects.filter(Exists(mine))
             .annotate(
                 member_count_annotation=Count("memberships", distinct=True),
-                latest_message_id=latest_msg_sq,
+                latest_message_id=Subquery(latest_message),
+                my_last_seen=Subquery(mine.values("last_seen")[:1]),
             )
+            .annotate(unread_annotation=Coalesce(Subquery(unread), 0))
             .order_by("-created_at")
         )
+        if not rooms:
+            return DashboardData()
 
         latest_ids = [r.latest_message_id for r in rooms if r.latest_message_id]
         last_message_map = {
@@ -46,24 +62,8 @@ class RoomDashboardRepository:
                 else []
             )
         }
-
-        unread_data = dict(
-            Message.objects.filter(
-                room_id__in=room_ids,
-                timestamp__gt=Subquery(
-                    RoomMembership.objects.filter(
-                        user_id=user.id, room_id=OuterRef("room_id")
-                    ).values("last_seen")[:1]
-                ),
-            )
-            .values("room_id")
-            .annotate(cnt=Count("id"))
-            .values_list("room_id", "cnt")
-        )
+        unread_data = {r.id: r.unread_annotation for r in rooms if r.unread_annotation}
 
         return DashboardData(
-            rooms=rooms,
-            membership_map=membership_map,
-            last_message_map=last_message_map,
-            unread_data=unread_data,
+            rooms=rooms, last_message_map=last_message_map, unread_data=unread_data
         )

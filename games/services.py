@@ -2,8 +2,21 @@ import random
 from datetime import timedelta
 
 from django.contrib.auth import get_user_model
-from django.db import transaction
-from django.db.models import Case, Count, F, Q, When
+from django.db import connection, transaction
+from django.db.models import (
+    Case,
+    CharField,
+    Count,
+    Exists,
+    F,
+    Func,
+    IntegerField,
+    OuterRef,
+    Q,
+    Subquery,
+    Value,
+    When,
+)
 from django.utils import timezone
 
 from . import bot, notify
@@ -89,6 +102,18 @@ class PresenceService:
             get_user_model()
             .objects.filter(PresenceService.online_q(), pk=user.pk)
             .exists()
+        )
+
+    @staticmethod
+    def online_exists(user_field: str = "pk") -> Exists:
+        """Annotation: is this user online? `user_field` points at the user id
+        in the outer queryset ("pk" for a User queryset)."""
+        return Exists(
+            UserPresence.objects.filter(
+                user=OuterRef(user_field),
+                connections__gt=0,
+                last_seen__gte=PresenceService._cutoff(),
+            )
         )
 
     @staticmethod
@@ -405,29 +430,35 @@ class GameService:
 
     @staticmethod
     def stats_for(users, vs_bot: bool = False) -> dict:
-        """{user_id: {"wins", "losses", "draws"}} in two grouped queries."""
+        """{user_id: {"wins", "losses", "draws"}} in one query.
+
+        A game counts for both of its players, so the X side and the O side
+        are grouped separately and joined with UNION ALL: one round trip.
+        """
         ids = [u.pk for u in users]
         out = {uid: {"wins": 0, "losses": 0, "draws": 0} for uid in ids}
         if not ids:
             return out
         finished = Game.objects.filter(status=Game.Status.FINISHED, vs_bot=vs_bot)
-        for field, mine in (
-            ("player_x", Game.Result.X_WINS),
-            ("player_o", Game.Result.O_WINS),
-        ):
-            rows = (
+
+        def side(field, symbol):
+            return (
                 finished.filter(**{f"{field}__in": ids})
-                .values(field, "result")
+                .annotate(uid=F(field), side=Value(symbol, output_field=CharField()))
+                .values("uid", "side", "result")
                 .annotate(n=Count("id"))
+                .order_by()
             )
-            for row in rows:
-                rec = out[row[field]]
-                if row["result"] == Game.Result.DRAW:
-                    rec["draws"] += row["n"]
-                elif row["result"] == mine:
-                    rec["wins"] += row["n"]
-                else:
-                    rec["losses"] += row["n"]
+
+        wins_for = {"x": Game.Result.X_WINS, "o": Game.Result.O_WINS}
+        for row in side("player_x", "x").union(side("player_o", "o"), all=True):
+            rec = out[row["uid"]]
+            if row["result"] == Game.Result.DRAW:
+                rec["draws"] += row["n"]
+            elif row["result"] == wins_for[row["side"]]:
+                rec["wins"] += row["n"]
+            else:
+                rec["losses"] += row["n"]
         return out
 
     @staticmethod
@@ -436,27 +467,54 @@ class GameService:
 
     @staticmethod
     def overview(user) -> dict:
-        """Everything the lobby needs about the signed-in player, as models."""
-        # Every query here is a round trip to the database, so the lobby asks
-        # for as little as it can: one query for both records, one for all
-        # pending and active games (split up below), one for recent results.
-        GameService.expire_challenges()
+        """Everything the lobby needs about the signed-in player, as models.
+
+        Three queries. Each query is a round trip to the database, so:
+          1. every game the lobby lists (pending, active, the 10 latest
+             finished) in one query, split up here;
+          2. both records (people and bot) in one aggregate;
+          3. "am I queued" and "how many others are online" in one row.
+        Expired challenges are left out by date rather than marked cancelled
+        first: no write on a read. The write paths (challenge, accept, ...)
+        still expire them before acting.
+        """
         mine = Game.objects.filter(Q(player_x=user) | Q(player_o=user)).select_related(
             "player_x", "player_o"
         )
-        live = list(mine.filter(status__in=[Game.Status.PENDING, Game.Status.ACTIVE]))
-        pending = [g for g in live if g.status == Game.Status.PENDING]
+        latest_finished = (
+            Game.objects.filter(
+                Q(player_x=user) | Q(player_o=user), status=Game.Status.FINISHED
+            )
+            .order_by("-finished_at")
+            .values("pk")[:10]
+        )
+        games = list(
+            mine.filter(
+                Q(status=Game.Status.ACTIVE)
+                | Q(
+                    status=Game.Status.PENDING,
+                    created_at__gte=timezone.now() - CHALLENGE_TTL,
+                )
+                | Q(pk__in=latest_finished)
+            )
+        )
+        pending = [g for g in games if g.status == Game.Status.PENDING]
+        recent = sorted(
+            (g for g in games if g.status == Game.Status.FINISHED),
+            key=lambda g: g.finished_at or g.created_at,
+            reverse=True,
+        )
         stats, bot_stats = GameService._records(user)
+        queued, online_count = MatchmakingService.queued_and_online(user)
         return {
             "stats": stats,
             "bot_stats": bot_stats,
             "incoming": [g for g in pending if g.player_o_id == user.pk],
             "outgoing": [g for g in pending if g.player_x_id == user.pk],
-            "active": [g for g in live if g.status == Game.Status.ACTIVE][:10],
-            "recent": list(
-                mine.filter(status=Game.Status.FINISHED).order_by("-finished_at")[:10]
-            ),
-            "queued": MatchmakingService.is_queued(user),
+            "active": [g for g in games if g.status == Game.Status.ACTIVE][:10],
+            "recent": recent,
+            "queued": queued,
+            "online_count": online_count,
         }
 
     @staticmethod
@@ -575,18 +633,24 @@ class MatchmakingService:
         """Pair with someone already waiting, or start waiting. Returns the new
         game when paired, None when now waiting."""
         game = None
-        with transaction.atomic():
-            # People who went away without leaving the queue can't be matched.
-            MatchQueueEntry.objects.exclude(
-                user__in=get_user_model().objects.filter(PresenceService.online_q())
-            ).delete()
+        # Each query is a round trip, so the waiting path is three plain
+        # statements: who is waiting (and still online), join the queue, and
+        # (in the view) how many people are online. Only claiming an opponent
+        # needs a transaction.
+        candidates = list(
+            MatchQueueEntry.objects.exclude(user=user)
+            .select_related("user")
+            .annotate(online=PresenceService.online_exists("user_id"))
+            .order_by("created_at")[:5]
+        )
+        # People who went away without leaving the queue can't be matched;
+        # drop the ones we came across (rare: only a crashed server leaves them).
+        stale = [e.pk for e in candidates if not e.online]
+        if stale:
+            MatchQueueEntry.objects.filter(pk__in=stale).delete()
 
-            candidates = (
-                MatchQueueEntry.objects.exclude(user=user)
-                .select_related("user")
-                .order_by("created_at")[:5]
-            )
-            for entry in candidates:
+        for entry in (e for e in candidates if e.online):
+            with transaction.atomic():
                 # Deleting the row is the claim: if another request got to it
                 # first, nothing is deleted and we try the next one.
                 if MatchQueueEntry.objects.filter(pk=entry.pk).delete()[0]:
@@ -596,18 +660,71 @@ class MatchmakingService:
                         player_x=x, player_o=o, status=Game.Status.ACTIVE
                     )
                     break
-            else:
-                MatchQueueEntry.objects.get_or_create(user=user)
+        else:
+            MatchmakingService._enqueue(user)
 
         if game is not None:
             for p in (game.player_x, game.player_o):
                 notify.to_user(p.id, "match_found", game_id=str(game.id))
         return game
 
+    # The queue's two hot statements are written as plain SQL: Django wraps
+    # QuerySet.delete() and bulk_create() in BEGIN/COMMIT even for one row,
+    # and every extra statement is another round trip to the database.
+
+    @staticmethod
+    def _user_param(user):
+        field = MatchQueueEntry._meta.get_field("user")
+        return field.target_field.get_db_prep_value(user.pk, connection)
+
+    @staticmethod
+    def _enqueue(user) -> None:
+        """Start waiting; nothing happens if the user is already queued."""
+        meta, qn = MatchQueueEntry._meta, connection.ops.quote_name
+        created_at = meta.get_field("created_at").get_db_prep_value(
+            timezone.now(), connection
+        )
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"INSERT INTO {qn(meta.db_table)} "
+                f"({qn(meta.get_field('user').column)}, {qn('created_at')}) "
+                "VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                [MatchmakingService._user_param(user), created_at],
+            )
+
     @staticmethod
     def leave(user) -> None:
-        MatchQueueEntry.objects.filter(user=user).delete()
+        meta, qn = MatchQueueEntry._meta, connection.ops.quote_name
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"DELETE FROM {qn(meta.db_table)} "
+                f"WHERE {qn(meta.get_field('user').column)} = %s",
+                [MatchmakingService._user_param(user)],
+            )
 
     @staticmethod
     def is_queued(user) -> bool:
         return MatchQueueEntry.objects.filter(user=user).exists()
+
+    @staticmethod
+    def queued_and_online(user) -> tuple[bool, int]:
+        """(is the user waiting for Quick match, how many others are online)
+        in a single query."""
+        User = get_user_model()
+        others_online = (
+            User.objects.filter(PresenceService.online_q())
+            .exclude(pk=OuterRef("pk"))
+            .order_by()
+            .annotate(n=Func(F("pk"), function="COUNT", output_field=IntegerField()))
+            .values("n")
+        )
+        row = (
+            User.objects.filter(pk=user.pk)
+            .annotate(
+                queued=Exists(MatchQueueEntry.objects.filter(user=OuterRef("pk"))),
+                online=Subquery(others_online),
+            )
+            .values("queued", "online")
+            .first()
+        )
+        return (bool(row["queued"]), row["online"] or 0) if row else (False, 0)

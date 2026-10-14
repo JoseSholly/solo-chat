@@ -100,7 +100,7 @@ REST_FRAMEWORK = {
         "rest_framework.parsers.JSONParser",
     ],
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "accounts.authentication.CachedJWTAuthentication",
     ],
     "DEFAULT_THROTTLE_RATES": {
         # Forgot-password requests, per IP (ScopedRateThrottle on that view only)

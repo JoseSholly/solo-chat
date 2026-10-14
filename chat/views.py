@@ -283,7 +283,6 @@ class DashboardView(APIView):
             many=True,
             context={
                 "request": request,
-                "membership_map": data.membership_map,
                 "last_message_map": data.last_message_map,
                 "unread_data": data.unread_data,
             },
@@ -295,15 +294,13 @@ class RoomDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, slug):
-        room = RoomService.get_by_slug(slug)
+        room, membership = RoomService.get_with_membership(request.user, slug)
         if room is None:
             return Response(
                 {"error": "Room not found.", "code": "not_found"},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        try:
-            membership = RoomMembership.objects.get(user=request.user, room=room)
-        except RoomMembership.DoesNotExist:
+        if membership is None:
             return Response(
                 {"error": "You are not a member of this room.", "code": "not_member"},
                 status=status.HTTP_403_FORBIDDEN,
@@ -324,12 +321,12 @@ class RoomMembersView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, slug):
-        room = RoomService.get_by_slug(slug)
+        room, membership = RoomService.get_with_membership(request.user, slug)
         if room is None:
             return Response(
                 {"error": "Room not found."}, status=status.HTTP_404_NOT_FOUND
             )
-        if not RoomService.is_member(request.user, room):
+        if membership is None:
             return Response(
                 {"error": "Not a member."}, status=status.HTTP_403_FORBIDDEN
             )
@@ -342,7 +339,7 @@ class RoomMembersView(APIView):
             .select_related("user")
             .order_by("user__display_name", "user__username")
         )
-        total = qs.count()
+        total = room.member_total  # counted along with the membership check
         batch = qs[offset : offset + limit]
 
         members = []
@@ -367,21 +364,22 @@ class MarkRoomSeenView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, slug):
-        room = RoomService.get_by_slug(slug)
-        if room is None:
+        # One UPDATE does the lookup and the write. Only if it touched nothing
+        # do we ask why: no such room (404) or not a member (403).
+        updated = RoomMembership.objects.filter(
+            user=request.user, room__slug=slug
+        ).update(last_seen=timezone.now())
+        if updated:
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        if RoomService.get_by_slug(slug) is None:
             return Response(
                 {"error": "Room not found.", "code": "not_found"},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        updated = RoomMembership.objects.filter(user=request.user, room=room).update(
-            last_seen=timezone.now()
+        return Response(
+            {"error": "You are not a member of this room.", "code": "not_member"},
+            status=status.HTTP_403_FORBIDDEN,
         )
-        if not updated:
-            return Response(
-                {"error": "You are not a member of this room.", "code": "not_member"},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class AuthenticatedMediaUploadView(APIView):

@@ -23,19 +23,15 @@ class PlayersView(APIView):
     def get(self, request):
         q = request.query_params.get("q", "").strip().lstrip("@")
         if q:
+            # Who matches, and whether each is online, in one query
             users = list(
                 get_user_model()
                 .objects.filter(Q(username__icontains=q) | Q(display_name__icontains=q))
                 .exclude(pk=request.user.pk)
+                .annotate(is_online=PresenceService.online_exists())
                 .order_by("username")[:20]
             )
-            online_ids = set(
-                get_user_model()
-                .objects.filter(
-                    PresenceService.online_q(), pk__in=[u.pk for u in users]
-                )
-                .values_list("pk", flat=True)
-            )
+            online_ids = {u.pk for u in users if u.is_online}
         else:
             users = PresenceService.online_users(exclude=request.user)
             online_ids = {u.pk for u in users}
@@ -72,7 +68,7 @@ class OverviewView(APIView):
                 "active": states(data["active"]),
                 "recent": states(data["recent"]),
                 "queued": data["queued"],
-                "online_count": PresenceService.online_count(exclude=request.user),
+                "online_count": data["online_count"],
             }
         )
 
@@ -149,9 +145,7 @@ class QuickMatchView(APIView):
             return Response(
                 {
                     "status": "waiting",
-                    "online_count": len(
-                        PresenceService.online_users(exclude=request.user)
-                    ),
+                    "online_count": PresenceService.online_count(exclude=request.user),
                 },
                 status=status.HTTP_202_ACCEPTED,
             )

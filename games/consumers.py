@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
@@ -8,6 +9,8 @@ from chat.consumers import _authenticate_from_scope
 
 from .serializers import game_state
 from .services import GameError, GameService
+
+logger = logging.getLogger(__name__)
 
 BOT_THINK_SECONDS = 0.45  # long enough to read as a turn, short enough not to drag
 
@@ -83,6 +86,18 @@ class GameConsumer(AsyncWebsocketConsumer):
             self.group_name, {"type": "game_update", "game": game_state(game)}
         )
 
+    async def _send_unexpected(self):
+        # An unexpected server error is reported, not raised: raising closes the
+        # socket, the browser reconnects, and the same error repeats in a loop.
+        logger.exception("Game %s: unexpected error", self.game_id)
+        await self.send_json(
+            {
+                "type": "error",
+                "error": "Something went wrong on our side. Try again.",
+                "code": "server_error",
+            }
+        )
+
     async def _run(self, method, *args) -> bool:
         try:
             game = await database_sync_to_async(method)(*args)
@@ -91,16 +106,23 @@ class GameConsumer(AsyncWebsocketConsumer):
                 {"type": "error", "error": exc.message, "code": exc.code}
             )
             return False
+        except Exception:
+            await self._send_unexpected()
+            return False
         await self._broadcast(game)
         return True
 
     async def _bot_turn(self, delay: bool = False):
-        game = await database_sync_to_async(GameService.get)(self.game_id)
-        if game is None or not game.vs_bot:
+        try:
+            game = await database_sync_to_async(GameService.get)(self.game_id)
+            if game is None or not game.vs_bot:
+                return
+            if delay:
+                await asyncio.sleep(BOT_THINK_SECONDS)
+            game = await database_sync_to_async(GameService.bot_move)(self.game_id)
+        except Exception:
+            await self._send_unexpected()
             return
-        if delay:
-            await asyncio.sleep(BOT_THINK_SECONDS)
-        game = await database_sync_to_async(GameService.bot_move)(self.game_id)
         if game is not None:
             await self._broadcast(game)
 

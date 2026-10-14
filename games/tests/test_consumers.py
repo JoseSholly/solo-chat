@@ -103,3 +103,26 @@ def test_notification_socket_tracks_presence_and_delivers_invites(alice, bob):
 
     async_to_sync(scenario)()
     assert not PresenceService.is_online(bob)
+
+
+@pytest.mark.django_db(transaction=True)
+def test_unexpected_error_is_reported_without_dropping_the_socket(alice, monkeypatch):
+    game = GameService.play_bot(alice, "easy")
+
+    def boom(*args):
+        raise RuntimeError("database fell over")
+
+    monkeypatch.setattr(GameService, "move", staticmethod(boom))
+
+    async def scenario():
+        a = _ws(alice, f"/ws/games/{game.id}/")
+        assert (await a.connect())[0]
+        await _next(a, "game_state")
+        await a.send_json_to({"type": "move", "index": 0})
+        assert (await _next(a, "error"))["code"] == "server_error"
+        # Still connected: the next frame is answered, not refused.
+        await a.send_json_to({"type": "here"})
+        await _next(a, "player_presence")
+        await a.disconnect()
+
+    async_to_sync(scenario)()

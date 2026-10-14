@@ -116,7 +116,9 @@ def _finish_if_over(game: Game) -> None:
 def _locked(game_id) -> Game:
     try:
         return (
-            Game.objects.select_for_update()
+            # of=("self",): lock only the game row. player_o is nullable (bot
+            # games), so it's an outer join, which PostgreSQL won't lock.
+            Game.objects.select_for_update(of=("self",))
             .select_related("player_x", "player_o")
             .get(pk=game_id)
         )

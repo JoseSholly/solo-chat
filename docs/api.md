@@ -13,6 +13,8 @@ Pages, REST endpoints and WebSocket messages. For how the pieces fit together se
 | `/` | Landing page |
 | `/signup/` | Create an account |
 | `/login/` | Log in |
+| `/forgot-password/` | Ask for a password reset link |
+| `/reset-password/<uid>/<token>/` | Set a new password from the emailed link (valid 1 hour, once) |
 | `/dashboard/` | Your rooms — select or create |
 | `/dashboard/?room=<slug>` | Dashboard with a room open |
 | `/dashboard/?games` | Games lobby (Tic-Tac-Toe) |
@@ -40,6 +42,11 @@ Authorization: Bearer <access_token>
 | `PATCH` | `me/` | ✓ | Update display name, bio, or avatar (multipart) |
 | `POST` | `token/refresh/` | — | Exchange refresh token for new access + refresh |
 | `GET` | `users/<username>/` | ✓ | Public profile of another user, including `game_stats` (`{ wins, losses, draws }` against people) |
+| `POST` | `password/forgot/` | — | `{ "email" }` → emails a reset link if the account exists. Always `200` with the same message, so it can't reveal who has an account. `400 invalid_email` for a malformed address; `429` after 5 requests an hour from one IP |
+| `GET` | `password/reset/?uid=&token=` | — | Check a reset link before showing the form → `{ "valid": true \| false }` |
+| `POST` | `password/reset/` | — | `{ "uid", "token", "password" }` → sets the password (min 8 characters), signs out every other session, and returns `{ access, refresh, user }` like login. `400 invalid_link` (expired, used or tampered) or `400 invalid_password` |
+
+Reset links look like `<site>/reset-password/<uid>/<token>/`, are built with Django's `default_token_generator`, last one hour (`PASSWORD_RESET_TIMEOUT`), and stop working once the password changes. Nothing extra is stored.
 
 ## Rooms — `/api/`
 

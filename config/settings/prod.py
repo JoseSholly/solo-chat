@@ -83,3 +83,12 @@ CLOUDINARY_STORAGE = {
     "API_SECRET": os.environ["CLOUDINARY_API_SECRET"],
     "DEFAULT_FOLDER": "solo-chat",
 }
+
+# ─── Email (Resend) ──────────────────────────────────────────────────────────
+# base.py read these before load_dotenv() ran; read them again so a .env file
+# works as well as real environment variables.
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", RESEND_API_KEY)
+if RESEND_API_KEY:
+    EMAIL_BACKEND = "accounts.email.ResendEmailBackend"
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", DEFAULT_FROM_EMAIL)
+SITE_URL = os.environ.get("SITE_URL", SITE_URL).rstrip("/")

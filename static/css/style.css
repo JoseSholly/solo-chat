@@ -1863,6 +1863,18 @@ textarea.input { height: auto; min-height: 96px; padding: var(--s-3) var(--s-4);
 .auth-form { display: flex; flex-direction: column; gap: var(--s-5); }
 .auth-form .btn-primary { margin-top: var(--s-2); }
 .auth-note { margin-top: var(--s-6); font-size: var(--fs-sm); color: var(--text-3); }
+.auth-actions { display: flex; flex-direction: column; gap: var(--s-2); }
+.auth-body > .spinner { align-self: flex-start; }
+.auth-title:focus { outline: none; }
+.field-link {
+  font-weight: 400;
+  color: var(--text-3);
+  text-decoration: underline;
+  text-decoration-color: var(--line-3);
+  text-underline-offset: 3px;
+  transition: color var(--dur-micro), text-decoration-color var(--dur-micro);
+}
+.field-link:hover { color: var(--text); text-decoration-color: var(--text); }
 
 .auth-aside {
   position: relative;

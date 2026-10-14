@@ -17,8 +17,10 @@ solo-chat/
 │
 ├── accounts/                 # Auth & user profiles
 │   ├── models.py             # Custom User (email login, UUID PK, Argon2)
-│   ├── serializers.py        # Signup · Login · Profile · PublicProfile
-│   ├── views.py              # SignupView · LoginView · LogoutView · ProfileView · UserPublicProfileView
+│   ├── serializers.py        # Signup · Login · Profile · PublicProfile · Forgot/Reset password
+│   ├── email.py              # ResendEmailBackend — Django email over Resend's HTTPS API
+│   ├── views.py              # Signup · Login · Logout · Profile · PublicProfile · ForgotPassword · ResetPassword
+│   ├── tests.py              # Password reset flow + Resend backend
 │   └── urls.py               # /api/auth/*
 │
 ├── chat/                     # Rooms, messages, WebSocket
@@ -72,7 +74,10 @@ solo-chat/
 │   ├── accounts/
 │   │   ├── signup.html
 │   │   ├── login.html
-│   │   └── profile.html
+│   │   ├── forgot_password.html
+│   │   ├── reset_password.html
+│   │   ├── profile.html
+│   │   └── email/            # password_reset.txt / .html
 │   ├── chat/
 │   │   ├── dashboard.html    # Main SPA shell (sidebar + room / games panel)
 │   │   ├── join.html         # Invite-link landing page

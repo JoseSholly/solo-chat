@@ -1,3 +1,4 @@
+import os
 from datetime import timedelta
 from pathlib import Path
 
@@ -99,7 +100,30 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
+    "DEFAULT_THROTTLE_RATES": {
+        # Forgot-password requests, per IP (ScopedRateThrottle on that view only)
+        "password_reset": "5/hour",
+    },
 }
+
+# ─── Email & password reset ──────────────────────────────────────────────────
+# With a Resend API key, mail goes out through Resend's HTTPS API; without one
+# it's printed to the server log (handy locally: copy the reset link from there).
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+EMAIL_BACKEND = (
+    "accounts.email.ResendEmailBackend"
+    if RESEND_API_KEY
+    else "django.core.mail.backends.console.EmailBackend"
+)
+# Resend's shared sender only delivers to your own Resend account address.
+# To email any user, verify a domain in Resend and use an address on it.
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL", "Solo-Chat <onboarding@resend.dev>"
+)
+# Optional public origin for links in emails, e.g. https://solo-chat.example.com.
+# Empty means "build it from the request".
+SITE_URL = os.environ.get("SITE_URL", "").rstrip("/")
+PASSWORD_RESET_TIMEOUT = 60 * 60  # reset links last one hour
 
 JAZZMIN_SETTINGS = {
     # ── Branding ──────────────────────────────────────────────────────────

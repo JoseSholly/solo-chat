@@ -550,6 +550,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   Games.init();   // games.js
 
+  // One-time message handed over from another page (e.g. after a password reset)
+  try {
+    const flash = sessionStorage.getItem('solo.flash');
+    if (flash) { sessionStorage.removeItem('solo.flash'); showToast(flash); }
+  } catch { /* storage blocked */ }
+
   await RoomList.load();
   Notifications.connect();
 

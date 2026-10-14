@@ -1,4 +1,7 @@
 from django.contrib.auth import authenticate
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode
 from rest_framework import serializers
 
 from .models import User
@@ -34,6 +37,36 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("Account is disabled.")
         data["user"] = user
         return data
+
+
+class ForgotPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class ResetLinkSerializer(serializers.Serializer):
+    """The uid + token pair from a reset link. Resolves to the user if the
+    link is still good: right user, not expired, not already used."""
+
+    uid = serializers.CharField()
+    token = serializers.CharField()
+
+    def validate(self, data):
+        try:
+            pk = force_str(urlsafe_base64_decode(data["uid"]))
+            user = User.objects.get(pk=pk, is_active=True)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            user = None
+        if user is None or not default_token_generator.check_token(user, data["token"]):
+            raise serializers.ValidationError(
+                "This reset link has expired or was already used."
+            )
+        data["user"] = user
+        return data
+
+
+class ResetPasswordSerializer(ResetLinkSerializer):
+    # Same rule as signup
+    password = serializers.CharField(write_only=True, min_length=8)
 
 
 class UserProfileSerializer(serializers.ModelSerializer):

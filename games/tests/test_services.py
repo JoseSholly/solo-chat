@@ -243,3 +243,13 @@ def test_lobby_records_match_stats(alice, bob):
         "losses": 1,
         "draws": 0,
     }
+
+
+def test_joining_the_queue_twice_keeps_one_entry(alice, online):
+    online(alice)
+    assert MatchmakingService.join(alice) is None
+    assert MatchmakingService.join(alice) is None
+    assert MatchQueueEntry.objects.filter(user=alice).count() == 1
+    MatchmakingService.leave(alice)
+    MatchmakingService.leave(alice)  # leaving when not queued is fine
+    assert not MatchmakingService.is_queued(alice)

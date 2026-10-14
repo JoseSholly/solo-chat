@@ -14,7 +14,6 @@ def test_get_user_dashboard_returns_empty_when_user_has_no_rooms(user):
     data = RoomDashboardRepository.get_user_dashboard(user)
 
     assert data.rooms == []
-    assert data.membership_map == {}
     assert data.last_message_map == {}
     assert data.unread_data == {}
 
@@ -23,7 +22,6 @@ def test_get_user_dashboard_room_with_no_messages(user, room):
     data = RoomDashboardRepository.get_user_dashboard(user)
 
     assert [r.id for r in data.rooms] == [room.id]
-    assert room.id in data.membership_map
     assert data.last_message_map == {}
     assert data.unread_data == {}
     assert data.rooms[0].member_count_annotation == 1

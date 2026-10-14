@@ -43,21 +43,40 @@ DATABASES = {
         "PORT": 5432,
         "OPTIONS": {
             **dict(parse_qsl(tmpPostgres.query)),  # sslmode etc. from DATABASE_URL
-            # Reuse connections instead of opening a new one per request. Each new
-            # connection to Neon (Frankfurt) costs several round trips — TCP, TLS,
-            # auth — before the first query. Under ASGI, Django recommends a pool
+            # Reuse connections instead of opening a new one per request. A new
+            # connection costs several round trips (TCP, TLS, auth) before the
+            # first query, and every round trip to the database is expensive
+            # when it's in another region. Under ASGI, Django recommends a pool
             # over persistent connections (CONN_MAX_AGE).
             "pool": {
-                "min_size": 1,
+                # No connections are kept forever: after a couple of idle minutes
+                # they're closed, before Neon suspends its compute (~5 min) and
+                # drops them. A connection broken that way would otherwise fail
+                # the first request that picked it up.
+                "min_size": 0,
                 "max_size": 10,
                 "timeout": 10,  # seconds to wait for a free connection
-                "max_idle": 300,  # close connections idle for 5 min
+                "max_idle": 120,  # one idle connection is closed per period
             },
         },
-        # With a pool, this makes Django test each connection before handing it
-        # out (psycopg_pool's check_connection), so one broken while Neon's
-        # compute was suspended is replaced instead of failing the request.
-        "CONN_HEALTH_CHECKS": True,
+        # Deliberately off. With a pool, this would test every connection before
+        # each request, an extra round trip (~100 ms to a far-away database)
+        # on every single request. The short idle time above covers what it
+        # was for.
+        "CONN_HEALTH_CHECKS": False,
+    }
+}
+
+# ─── Cache ───────────────────────────────────────────────────────────────────
+# Shared by every server process, so clearing a cached user (accounts/
+# authentication.py) or a rate-limit counter in one is seen by all. Redis sits
+# next to the server on Railway's private network: about a millisecond, against
+# ~100 ms for a query to a database in another region.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": os.environ["REDIS_URL"],
+        "KEY_PREFIX": "solochat",
     }
 }
 

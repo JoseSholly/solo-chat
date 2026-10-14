@@ -114,3 +114,35 @@ def test_responses_carry_server_timing(user):
     timing = res["Server-Timing"]
     assert timing.startswith("app;dur=")
     assert "db;dur=" in timing and 'queries"' in timing
+
+
+def test_hot_endpoints_stay_within_their_query_budget(user, django_user_model):
+    """Each query is a round trip (~100 ms to a far-away database). These are
+    the budgets the endpoints were brought down to; the authenticated user
+    comes from the cache, so it isn't counted here."""
+    from games.services import MatchmakingService
+
+    people = _people(django_user_model, "p", 3)
+    room = _room_with(user, "budget", people, 4)
+    PresenceService.connect(user)
+    for p in people:
+        PresenceService.connect(p)
+    c = _client(user)
+
+    budgets = {
+        "/api/dashboard/": 2,
+        f"/api/rooms/{room.slug}/": 3,
+        f"/api/rooms/{room.slug}/members/": 2,
+        "/api/games/me/": 3,
+        "/api/games/players/": 2,
+    }
+    for url, budget in budgets.items():
+        assert _queries(c, url) <= budget, url
+
+    with CaptureQueriesContext(connection) as ctx:
+        assert c.post("/api/games/quick-match/").status_code == 202
+    assert len(ctx.captured_queries) <= 3  # waiting: candidates, enqueue, count
+    with CaptureQueriesContext(connection) as ctx:
+        assert c.delete("/api/games/quick-match/").status_code == 204
+    assert len(ctx.captured_queries) == 1
+    assert not MatchmakingService.is_queued(user)

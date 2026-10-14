@@ -22,7 +22,9 @@ class RoomSerializer(serializers.ModelSerializer):
         ]
 
     def get_member_count(self, obj):
-        return obj.memberships.count()
+        # RoomService.get_with_membership has already counted them
+        total = getattr(obj, "member_total", None)
+        return total if total is not None else obj.memberships.count()
 
     def get_is_creator(self, obj):
         request = self.context.get("request")
@@ -131,11 +133,5 @@ class DashboardRoomSerializer(serializers.ModelSerializer):
         }
 
     def get_unread_count(self, obj):
-        unread_data = self.context.get("unread_data")
-        if unread_data is not None:
-            return unread_data.get(obj.id, 0)
-        membership_map = self.context.get("membership_map", {})
-        membership = membership_map.get(obj.id)
-        if membership is None:
-            return 0
-        return obj.messages.filter(timestamp__gt=membership.last_seen).count()
+        # Computed with the rooms by RoomDashboardRepository
+        return self.context.get("unread_data", {}).get(obj.id, 0)

@@ -21,6 +21,8 @@ solo-chat/
 │   ├── models.py             # Custom User (email login, UUID PK, Argon2)
 │   ├── serializers.py        # Signup · Login · Profile · PublicProfile · Forgot/Reset password
 │   ├── email.py              # ResendEmailBackend — Django email over Resend's HTTPS API
+│   ├── authentication.py     # CachedJWTAuthentication — signed-in user cached, cleared on change
+│   ├── signals.py            # clears the cached user on save/delete/group changes
 │   ├── views.py              # Signup · Login · Logout · Profile · PublicProfile · ForgotPassword · ResetPassword
 │   ├── tests.py              # Password reset flow + Resend backend
 │   └── urls.py               # /api/auth/*
@@ -33,6 +35,7 @@ solo-chat/
 │   ├── routing.py            # WebSocket URL patterns
 │   ├── urls.py               # /api/* REST endpoints
 │   ├── apps.py               # AppConfig.ready() wires event handlers + signal receivers
+│   ├── management/commands/dbping.py   # measure the server → database round trip
 │   ├── services/
 │   │   ├── __init__.py       # Re-exports RoomService · MessageService · MediaService
 │   │   ├── room_service.py

@@ -8,7 +8,28 @@ from django.contrib.auth.models import (
 from django.db import models
 
 
-class UserManager(BaseUserManager):
+class UserQuerySet(models.QuerySet):
+    """Bulk writes send no save() signals, so they clear the auth cache here."""
+
+    def _forget(self, ids):
+        from .authentication import forget_user
+
+        for pk in ids:
+            forget_user(pk)
+
+    def update(self, **kwargs):
+        ids = list(self.values_list("pk", flat=True))
+        count = super().update(**kwargs)
+        self._forget(ids)
+        return count
+
+    def bulk_update(self, objs, fields, batch_size=None):
+        count = super().bulk_update(objs, fields, batch_size)
+        self._forget(o.pk for o in objs)
+        return count
+
+
+class UserManager(BaseUserManager.from_queryset(UserQuerySet)):
     def create_user(self, email, username, display_name, password=None, **extra_fields):
         if not email:
             raise ValueError("Email is required")

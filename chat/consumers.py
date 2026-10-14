@@ -22,10 +22,10 @@ def _authenticate_from_scope(scope):
     if not token_list:
         return None
     try:
-        payload = AccessToken(token_list[0])
-        from accounts.models import User
+        from accounts.authentication import get_active_user
 
-        return User.objects.get(id=payload["user_id"])
+        payload = AccessToken(token_list[0])
+        return get_active_user(payload["user_id"])
     except (InvalidToken, TokenError, KeyError, Exception):
         return None
 
@@ -156,12 +156,12 @@ class RoomChatConsumer(LiveConsumer):
             await self.reject(4001)
             return
 
-        self.room = await self._get_room(slug)
+        # One query answers both "does the room exist" and "are they in it"
+        self.room, membership = await self._get_room_and_membership(slug)
         if self.room is None:
             await self.reject(4004)
             return
-
-        if not await self._is_member():
+        if membership is None:
             await self.reject(4003)
             return
 
@@ -229,12 +229,8 @@ class RoomChatConsumer(LiveConsumer):
     # -----------------------------------------------------------------------
 
     @database_sync_to_async
-    def _get_room(self, slug):
-        return RoomService.get_by_slug(slug)
-
-    @database_sync_to_async
-    def _is_member(self):
-        return RoomService.is_member(self.user, self.room)
+    def _get_room_and_membership(self, slug):
+        return RoomService.get_with_membership(self.user, slug)
 
     @database_sync_to_async
     def _save_text(self, content: str):

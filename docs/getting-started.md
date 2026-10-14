@@ -95,6 +95,10 @@ With `uv`, prefix any of these with `uv run` (e.g. `uv run python -m pytest`).
 make lint-fix        # ruff check --fix . && ruff format .
 ```
 
+## Trying password reset locally
+
+Without `RESEND_API_KEY`, emails are printed in the server's console instead of sent. Click **Forgot password?** on the login page, enter an account's email, then copy the `/reset-password/…` link from the server output into your browser. The link works once, for one hour.
+
 ## Trying games locally
 
 Games need two signed-in players, so open the dashboard in two browsers (or a normal and a private window) with different accounts. Both appear in each other's **Games → Players** list within a few seconds. To try it alone, use **Play vs Bot**. See [Games](games.md) for how matchmaking works.

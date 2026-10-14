@@ -15,6 +15,7 @@ ChatRooms lets users create private rooms, share invite links, and chat in real 
 | Feature | Details |
 |---|---|
 | **JWT Authentication** | Signup, login, logout. Access token (1 day) + rotating refresh token (7 days) + server-side blacklist on logout |
+| **Password Reset** | "Forgot password?" emails a one-hour, single-use link (sent with Resend); setting the new password signs you in and out everywhere else |
 | **User Profiles** | Display name, @username, bio, avatar upload (served from `/media/`) |
 | **Room Creation** | Any authenticated user can create a named room with an optional description |
 | **Invite Links** | Each room has a `slug` UUID (separate from its `id`) embedded in shareable `/join/<slug>/` URLs |
@@ -89,7 +90,7 @@ Full setup, settings modules and test commands: [docs/getting-started.md](docs/g
 | [Data models](docs/data-models.md) | Users, rooms, messages, games |
 | [API reference](docs/api.md) | Page routes, REST endpoints, WebSocket messages |
 | [Project structure](docs/project-structure.md) | What lives where |
-| [Deployment](docs/deployment.md) | Production Docker image and environment variables |
+| [Deployment](docs/deployment.md) | Production Docker image, environment variables, email (Resend) |
 
 ---
 

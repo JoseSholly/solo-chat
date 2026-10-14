@@ -30,6 +30,16 @@ urlpatterns = [
         name="page-login",
     ),
     path(
+        "forgot-password/",
+        TemplateView.as_view(template_name="accounts/forgot_password.html"),
+        name="page-forgot-password",
+    ),
+    path(
+        "reset-password/<str:uidb64>/<str:token>/",
+        TemplateView.as_view(template_name="accounts/reset_password.html"),
+        name="page-reset-password",
+    ),
+    path(
         "dashboard/",
         TemplateView.as_view(template_name="chat/dashboard.html"),
         name="page-dashboard",

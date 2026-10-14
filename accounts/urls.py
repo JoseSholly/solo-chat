@@ -10,6 +10,16 @@ urlpatterns = [
     path("me/", views.ProfileView.as_view(), name="auth-profile"),
     path("token/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
     path(
+        "password/forgot/",
+        views.ForgotPasswordView.as_view(),
+        name="auth-password-forgot",
+    ),
+    path(
+        "password/reset/",
+        views.ResetPasswordView.as_view(),
+        name="auth-password-reset",
+    ),
+    path(
         "users/<str:username>/",
         views.UserPublicProfileView.as_view(),
         name="user-public-profile",

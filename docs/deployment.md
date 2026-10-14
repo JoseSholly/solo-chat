@@ -24,6 +24,17 @@ Set these wherever you deploy:
 | `DATABASE_URL` | `postgres://user:pass@host/db` | Standard PostgreSQL connection string |
 | `REDIS_URL` | `redis://host:6379` | Used for the Channels layer |
 | `DJANGO_SETTINGS_MODULE` | `config.settings.prod` | Must be set explicitly in production |
+| `RESEND_API_KEY` | `re_…` | Sends password-reset emails through [Resend](https://resend.com). Without it, emails are written to the logs instead of sent |
+| `DEFAULT_FROM_EMAIL` | `Solo-Chat <no-reply@your-domain.com>` | Sender address. Defaults to Resend's shared `onboarding@resend.dev` (see below) |
+| `SITE_URL` | `https://your-domain.com` | Optional. Origin used in emailed links; if unset it's taken from the request |
+
+### Email (password reset)
+
+Password-reset emails go through Resend's HTTPS API (`accounts/email.py`), not SMTP: Railway blocks outgoing SMTP on its Free and Hobby plans.
+
+1. Create an API key in Resend and set `RESEND_API_KEY`.
+2. With the default sender `onboarding@resend.dev`, Resend only delivers to **your own Resend account address** — fine for trying it out.
+3. To email any user, verify a domain you own in Resend (it gives you DNS records to add), then set `DEFAULT_FROM_EMAIL` to an address on that domain.
 
 ## Notes for games
 

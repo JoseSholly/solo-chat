@@ -33,7 +33,10 @@
           </div>
 
           <div class="field">
-            <label class="field-label" for="password">Password</label>
+            <div class="field-label">
+              <label for="password">Password</label>
+              <a class="field-link" id="forgot-link" href="/forgot-password/">Forgot password?</a>
+            </div>
             <div class="input-wrap">
               <input class="input" type="password" id="password" autocomplete="current-password" required>
               <button type="button" class="icon-btn input-affix" id="toggle-password"
@@ -73,6 +76,12 @@
       toggle.innerHTML = icon(show ? 'eyeOff' : 'eye', 18);
       toggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
       toggle.setAttribute('aria-pressed', String(show));
+    });
+
+    // Carry the typed email over to the forgot-password page
+    document.getElementById('forgot-link').addEventListener('click', (e) => {
+      const typed = document.getElementById('email').value.trim();
+      if (typed) e.currentTarget.href = '/forgot-password/?email=' + encodeURIComponent(typed);
     });
 
     document.querySelectorAll('.input').forEach((el) =>

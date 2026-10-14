@@ -684,7 +684,6 @@ class GamesLobby {
 
 // ── Board ────────────────────────────────────────────────────────────────────
 
-const GAME_MAX_RECONNECTS = 6;
 // Centre of each cell on the 300×300 overlay used for the winning line
 const _cellCentre = (i) => [50 + (i % 3) * 100, 50 + Math.floor(i / 3) * 100];
 
@@ -700,8 +699,7 @@ class GameBoard {
     this._away     = null;   // why the opponent isn't on the board, and when the win can be claimed
     this._pending  = null;   // index of a move sent but not yet confirmed
     this._destroyed = false;
-    this._attempts = 0;
-    this._authRetried = false;
+    this.socket    = null;
     this._render();
     this._bind();
     this._connect();
@@ -789,11 +787,6 @@ class GameBoard {
       const cell = e.target.closest('.cell');
       if (cell) this._focusCell(Number(cell.dataset.i), false);
     });
-
-    this._onOnline     = () => this._retryNow();
-    this._onVisibility = () => { if (!document.hidden && this._el.conn.dataset.state === 'offline') this._retryNow(); };
-    window.addEventListener('online', this._onOnline);
-    document.addEventListener('visibilitychange', this._onVisibility);
   }
 
   _focusCell(i, move = true) {
@@ -804,69 +797,42 @@ class GameBoard {
 
   // ── Socket ───────────────────────────────────────────────────────────────
 
+  // LiveSocket (socket.js) keeps the line alive and reconnects on its own;
+  // the server resends the whole board on every connect.
   _connect() {
-    if (this._destroyed) return;
-    clearTimeout(this._reconnectTimer);
-    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws = new WebSocket(`${proto}://${location.host}/ws/games/${encodeURIComponent(this.id)}/?token=${getAccessToken()}`);
-    this.ws = ws;
-
-    ws.onopen = () => {
-      this._attempts = 0;
-      this.opponentHere = false;
-      this._setConn('live');
-    };
-
-    ws.onmessage = (e) => {
-      let msg;
-      try { msg = JSON.parse(e.data); } catch { return; }
-      if (msg.type === 'game_state')      this._onState(msg.game);
-      if (msg.type === 'player_presence') this._onPresence(msg);
-      if (msg.type === 'opponent')        this._onOpponent(msg);
-      if (msg.type === 'error') {
-        showToast(msg.error, 'error');
-        this._pending = null;
-        this._renderAway();   // re-enables Claim win if the claim was refused
-        if (this.game) this._onState(this.game, { replay: false });
-      }
-    };
-
-    ws.onclose = async (e) => {
-      if (this.ws !== ws || this._destroyed) return;
-      if (e.code === 4001 && !this._authRetried) {
-        this._authRetried = true;
-        if (await _tryRefresh()) { this._connect(); return; }
-      }
-      if (e.code === 4001 || e.code === 4003 || e.code === 4004) {
-        this._setConn('denied');
-        this._el.status.textContent = e.code === 4004 ? 'This game doesn\'t exist.' : 'You\'re not a player in this game.';
-        return;
-      }
-      if (this._attempts >= GAME_MAX_RECONNECTS) { this._setConn('offline'); return; }
-      const delay = Math.min(1000 * 2 ** this._attempts, 12000);
-      this._attempts++;
-      this._setConn('reconnecting');
-      this._reconnectTimer = setTimeout(() => this._connect(), delay);
-    };
+    this.socket = new LiveSocket(`/ws/games/${encodeURIComponent(this.id)}/`, {
+      onState: (state) => { if (state !== 'live') this._setConn(state); },
+      onOpen: () => {
+        this.opponentHere = false;
+        this._setConn('live');
+      },
+      onDenied: (code) => {
+        this._el.status.textContent = code === 4004 ? 'This game doesn\'t exist.'
+          : code === 4003 ? 'You\'re not a player in this game.'
+          : 'Your session ended. Sign in again to keep playing.';
+      },
+      onMessage: (msg) => {
+        if (msg.type === 'game_state')      this._onState(msg.game);
+        if (msg.type === 'player_presence') this._onPresence(msg);
+        if (msg.type === 'opponent')        this._onOpponent(msg);
+        if (msg.type === 'error') {
+          showToast(msg.error, 'error');
+          this._pending = null;
+          this._renderAway();   // re-enables Claim win if the claim was refused
+          if (this.game) this._onState(this.game, { replay: false });
+        }
+      },
+    });
   }
 
   _send(payload) {
-    if (this.ws?.readyState !== WebSocket.OPEN) {
-      showToast('Not connected — reconnecting…', 'error');
-      this._retryNow();
-      return false;
-    }
-    this.ws.send(JSON.stringify(payload));
-    return true;
+    if (this.socket?.send(payload)) return true;
+    showToast('Not connected — reconnecting…', 'error');
+    this._retryNow();
+    return false;
   }
 
-  _retryNow() {
-    if (this._destroyed || this.ws?.readyState === WebSocket.OPEN) return;
-    if (this.ws) { this.ws.onclose = null; this.ws.close(); }
-    this._attempts = 0;
-    this._setConn('reconnecting');
-    this._connect();
-  }
+  _retryNow() { this.socket?.retryNow(); }
 
   _setConn(state) {
     const el = this._el.conn;
@@ -971,7 +937,7 @@ class GameBoard {
   _myTurn() {
     const g = this.game;
     return !!g && g.status === 'active' && g.next === this.mine && this._pending === null
-      && this.ws?.readyState === WebSocket.OPEN;
+      && !!this.socket?.isOpen;
   }
 
   _renderPlayers() {
@@ -1156,15 +1122,13 @@ class GameBoard {
 
   destroy() {
     this._destroyed = true;
-    clearTimeout(this._reconnectTimer);
     clearTimeout(this._awayTimer);
-    window.removeEventListener('online', this._onOnline);
-    document.removeEventListener('visibilitychange', this._onVisibility);
-    if (this.ws) {
+    if (this.socket) {
       // Navigating away inside the app is leaving on purpose; a closed tab or
       // a dropped connection gets the reconnect grace period instead.
-      if (this._inLiveHumanGame() && this.ws.readyState === WebSocket.OPEN) this._send({ type: 'leave' });
-      this.ws.onclose = null; this.ws.close(); this.ws = null;
+      if (this._inLiveHumanGame() && this.socket.isOpen) this.socket.send({ type: 'leave' });
+      this.socket.close();
+      this.socket = null;
     }
   }
 }

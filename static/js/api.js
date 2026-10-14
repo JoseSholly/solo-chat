@@ -23,7 +23,28 @@ function clearSession() {
   localStorage.removeItem(_USER_KEY);
 }
 
-async function _tryRefresh() {
+// One refresh at a time: refresh tokens rotate, so two parallel refreshes
+// (say, two sockets finding their token expired at once) would spend the same
+// token twice, and the second would fail and sign the user out.
+let _refreshing = null;
+function _tryRefresh() {
+  if (!_refreshing) _refreshing = _doRefresh().finally(() => { _refreshing = null; });
+  return _refreshing;
+}
+
+// True when the access token is missing or expires within `marginSec`.
+function accessTokenExpiring(marginSec = 30) {
+  const token = getAccessToken();
+  if (!token) return true;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return !payload.exp || payload.exp * 1000 - Date.now() < marginSec * 1000;
+  } catch {
+    return true;
+  }
+}
+
+async function _doRefresh() {
   const refresh = getRefreshToken();
   if (!refresh) return false;
   try {

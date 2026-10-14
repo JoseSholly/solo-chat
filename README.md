@@ -44,7 +44,7 @@ ChatRooms lets users create private rooms, share invite links, and chat in real 
 | Password hashing | Argon2 (primary) | Designed for resistance to GPU brute-force |
 | Image processing | Pillow | Avatar storage and image MIME validation |
 | Static files (prod) | WhiteNoise | Serves compressed static files directly from Daphne — no separate CDN needed |
-| Database driver (prod) | psycopg2-binary | PostgreSQL adapter |
+| Database driver (prod) | psycopg 3 + psycopg-pool | PostgreSQL adapter with Django's built-in connection pool |
 | Database URL parsing | dj-database-url | Parses `DATABASE_URL` into Django's `DATABASES` dict |
 | Admin | Jazzmin | Enhanced Django admin UI |
 | Database | SQLite (dev) / PostgreSQL (prod) | Zero-config locally; UUID PK + concurrent writes in production |

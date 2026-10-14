@@ -92,6 +92,13 @@ class PresenceService:
         )
 
     @staticmethod
+    def online_count(exclude=None) -> int:
+        qs = get_user_model().objects.filter(PresenceService.online_q())
+        if exclude is not None:
+            qs = qs.exclude(pk=exclude.pk)
+        return qs.count()
+
+    @staticmethod
     def online_users(exclude=None, limit: int = 50):
         qs = get_user_model().objects.filter(PresenceService.online_q())
         if exclude is not None:
@@ -430,21 +437,55 @@ class GameService:
     @staticmethod
     def overview(user) -> dict:
         """Everything the lobby needs about the signed-in player, as models."""
+        # Every query here is a round trip to the database, so the lobby asks
+        # for as little as it can: one query for both records, one for all
+        # pending and active games (split up below), one for recent results.
         GameService.expire_challenges()
         mine = Game.objects.filter(Q(player_x=user) | Q(player_o=user)).select_related(
             "player_x", "player_o"
         )
+        live = list(mine.filter(status__in=[Game.Status.PENDING, Game.Status.ACTIVE]))
+        pending = [g for g in live if g.status == Game.Status.PENDING]
+        stats, bot_stats = GameService._records(user)
         return {
-            "stats": GameService.stats(user),
-            "bot_stats": GameService.stats(user, vs_bot=True),
-            "incoming": list(mine.filter(status=Game.Status.PENDING, player_o=user)),
-            "outgoing": list(mine.filter(status=Game.Status.PENDING, player_x=user)),
-            "active": list(mine.filter(status=Game.Status.ACTIVE)[:10]),
+            "stats": stats,
+            "bot_stats": bot_stats,
+            "incoming": [g for g in pending if g.player_o_id == user.pk],
+            "outgoing": [g for g in pending if g.player_x_id == user.pk],
+            "active": [g for g in live if g.status == Game.Status.ACTIVE][:10],
             "recent": list(
                 mine.filter(status=Game.Status.FINISHED).order_by("-finished_at")[:10]
             ),
             "queued": MatchmakingService.is_queued(user),
         }
+
+    @staticmethod
+    def _records(user) -> tuple[dict, dict]:
+        """(record against people, record against the bot) in one query."""
+        won = Q(player_x=user, result=Game.Result.X_WINS) | Q(
+            player_o=user, result=Game.Result.O_WINS
+        )
+        lost = Q(player_x=user, result=Game.Result.O_WINS) | Q(
+            player_o=user, result=Game.Result.X_WINS
+        )
+        drew = Q(result=Game.Result.DRAW)
+        counts = Game.objects.filter(
+            Q(player_x=user) | Q(player_o=user), status=Game.Status.FINISHED
+        ).aggregate(
+            **{
+                f"{prefix}{key}": Count("id", filter=Q(vs_bot=bot) & cond)
+                for prefix, bot in (("h_", False), ("b_", True))
+                for key, cond in (
+                    ("wins", won),
+                    ("draws", drew),
+                    ("losses", lost),
+                )
+            }
+        )
+        return tuple(
+            {k: counts[f"{prefix}{k}"] for k in ("wins", "losses", "draws")}
+            for prefix in ("h_", "b_")
+        )
 
 
 # ---------------------------------------------------------------------------

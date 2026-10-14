@@ -29,12 +29,8 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # ─── Database ────────────────────────────────────────────────────────────────
-# Add these at the top of your settings.py
-
-
 load_dotenv()
 
-# Replace the DATABASES section of your settings.py with this
 tmpPostgres = urlparse(os.getenv("DATABASE_URL"))
 
 DATABASES = {
@@ -45,7 +41,23 @@ DATABASES = {
         "PASSWORD": tmpPostgres.password,
         "HOST": tmpPostgres.hostname,
         "PORT": 5432,
-        "OPTIONS": dict(parse_qsl(tmpPostgres.query)),
+        "OPTIONS": {
+            **dict(parse_qsl(tmpPostgres.query)),  # sslmode etc. from DATABASE_URL
+            # Reuse connections instead of opening a new one per request. Each new
+            # connection to Neon (Frankfurt) costs several round trips — TCP, TLS,
+            # auth — before the first query. Under ASGI, Django recommends a pool
+            # over persistent connections (CONN_MAX_AGE).
+            "pool": {
+                "min_size": 1,
+                "max_size": 10,
+                "timeout": 10,  # seconds to wait for a free connection
+                "max_idle": 300,  # close connections idle for 5 min
+            },
+        },
+        # With a pool, this makes Django test each connection before handing it
+        # out (psycopg_pool's check_connection), so one broken while Neon's
+        # compute was suspended is replaced instead of failing the request.
+        "CONN_HEALTH_CHECKS": True,
     }
 }
 
@@ -65,14 +77,20 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Insert WhiteNoise right after SecurityMiddleware so it serves static files
 # before any auth or session processing.
-MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+MIDDLEWARE.insert(
+    MIDDLEWARE.index("django.middleware.security.SecurityMiddleware") + 1,
+    "whitenoise.middleware.WhiteNoiseMiddleware",
+)
 
 STORAGES = {
     "default": {
         "BACKEND": "config.settings.cloudinary.storages.MediaAndAudioCloudinaryStorage",
     },
+    # Content-hashed file names (style.4f1c2a9e.css): WhiteNoise serves them
+    # with a one-year "immutable" cache, so repeat visits load CSS/JS/icons from
+    # the browser with no network round trip. A changed file gets a new name.
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        "BACKEND": "config.storages.StaticFilesStorage",
     },
 }
 

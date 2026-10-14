@@ -13,6 +13,8 @@ solo-chat/
 │   │   └── cloudinary/       # Media storage settings for production
 │   ├── urls.py               # Root URL conf + page routes
 │   ├── asgi.py               # Dual-protocol ASGI app (HTTP + WebSocket)
+│   ├── middleware.py         # ServerTimingMiddleware — Server-Timing header, slow-request log
+│   ├── storages.py           # Hashed, compressed static files (one-year cache)
 │   └── wsgi.py
 │
 ├── accounts/                 # Auth & user profiles
@@ -52,6 +54,7 @@ solo-chat/
 │       ├── test_events_signals.py
 │       ├── test_events_handlers.py
 │       ├── test_live_sockets.py  # ping/pong, bad frames, close codes on every socket
+│       ├── test_query_counts.py  # hot endpoints don't run more queries as data grows
 │       ├── test_repositories.py
 │       ├── test_services.py
 │       ├── test_storages.py

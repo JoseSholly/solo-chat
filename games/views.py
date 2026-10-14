@@ -72,7 +72,7 @@ class OverviewView(APIView):
                 "active": states(data["active"]),
                 "recent": states(data["recent"]),
                 "queued": data["queued"],
-                "online_count": len(PresenceService.online_users(exclude=request.user)),
+                "online_count": PresenceService.online_count(exclude=request.user),
             }
         )
 

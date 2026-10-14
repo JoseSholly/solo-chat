@@ -221,3 +221,25 @@ def test_stats_count_human_games_only(alice, bob):
     assert GameService.stats(alice) == {"wins": 1, "losses": 1, "draws": 1}
     assert GameService.stats(bob) == {"wins": 1, "losses": 1, "draws": 1}
     assert GameService.stats(alice, vs_bot=True) == {"wins": 0, "losses": 1, "draws": 0}
+
+
+def test_lobby_records_match_stats(alice, bob):
+    """The lobby gets both records from one query; they must agree with stats()."""
+    _play(_active(alice, bob), [0, 3, 1, 4, 2])  # alice (X) wins
+    _play(_active(bob, alice), [0, 3, 1, 4, 2])  # bob (X) wins
+    _play(_active(bob, alice), [0, 3, 1, 4, 2])  # bob (X) wins again
+    _play(_active(alice, bob), [0, 1, 2, 4, 3, 5, 7, 6, 8])  # draw
+    GameService.resign(_active(bob, alice).id, bob)  # bob resigns: alice wins
+    GameService.resign(GameService.play_bot(alice, "easy").id, alice)  # bot win
+    _play(_active(alice, bob), [0])  # still active: not counted
+
+    for user in (alice, bob):
+        overview = GameService.overview(user)
+        assert overview["stats"] == GameService.stats(user)
+        assert overview["bot_stats"] == GameService.stats(user, vs_bot=True)
+    assert GameService.overview(alice)["stats"] == {"wins": 2, "losses": 2, "draws": 1}
+    assert GameService.overview(alice)["bot_stats"] == {
+        "wins": 0,
+        "losses": 1,
+        "draws": 0,
+    }

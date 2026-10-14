@@ -160,6 +160,10 @@ A connection can't be made permanent. Deploys restart the container, Railway's e
 - **Catch-up:** a room that reconnects re-fetches its recent messages, and `MessageList.append` skips ids it has already shown. The game socket gets the full board on every connect, and the notification socket triggers a room-list sync.
 - **Diagnosis:** every close is logged to the browser console as `[socket] <path> closed: code N`. `1006` means the line was cut without a goodbye (proxy, network or crash), `1011` means a server error, and `4xxx` codes are ours.
 
+## Database connections
+
+Under ASGI, Django runs synchronous code (views, `database_sync_to_async` in consumers) on worker threads, and Django's docs advise against persistent connections (`CONN_MAX_AGE`) there. Production uses Django's built-in **connection pool** instead (psycopg 3, Django 5.1+). A request borrows an open connection and returns it when done, so it never pays connection setup, which matters when the database is in another city. Settings and measurements are in [Deployment → Performance](deployment.md#performance).
+
 ## Unread count design
 
 `RoomMembership.last_seen` is updated to `timezone.now()` in two places: when a user opens a room (`GET /api/rooms/<slug>/` → `RoomService.update_last_seen`), and automatically for the sender of every new message via the `post_save(Message)` signal receiver.

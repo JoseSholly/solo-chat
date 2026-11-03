@@ -2331,3 +2331,28 @@ textarea.input { height: auto; min-height: 96px; padding: var(--s-3) var(--s-4);
   /* Keep functional progress feedback visible */
   .progress-bar, .profile-avatar-ring circle { transition-duration: 120ms !important; }
 }
+
+/* ── Room QR code ─────────────────────────────────────────────────────────── */
+.invite-qr-btn { margin-top: var(--s-3); }
+.qr-card { text-align: center; position: relative; }
+.qr-card .modal-close { position: absolute; top: var(--s-3); right: var(--s-3); margin: 0; }
+.qr-room-name { margin-top: var(--s-1); color: var(--text-2); font-size: var(--fs-md); overflow-wrap: anywhere; }
+.qr-frame {
+  /* Always white: scanners need dark modules on a light ground, in any theme. */
+  display: grid; place-items: center;
+  width: min(260px, 70vw); aspect-ratio: 1;
+  margin: var(--s-5) auto var(--s-4);
+  padding: var(--s-3);
+  border-radius: var(--r-md);
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.qr-frame img { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.qr-error { color: #444; font-size: var(--fs-sm); padding: var(--s-3); }
+.qr-url {
+  display: block;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--font-mono); font-size: var(--fs-2xs); color: var(--text-3);
+}
+.qr-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--s-2); margin-top: var(--s-4); }
+.qr-card .invite-hint { margin-top: var(--s-4); }

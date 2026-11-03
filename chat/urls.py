@@ -31,6 +31,7 @@ urlpatterns = [
         views.RoomMembersView.as_view(),
         name="room-members",
     ),
+    path("rooms/<uuid:slug>/qr/", views.RoomQRCodeView.as_view(), name="room-qr"),
     # ------------------------------------------------------------------
     # Invite / join flow
     # ------------------------------------------------------------------

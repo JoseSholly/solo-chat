@@ -83,6 +83,7 @@ class RoomPanel {
           <button type="button" class="btn btn-secondary btn-sm" id="rp-invite" title="Copy invite link">
             ${icon('link', 16)}<span class="btn-label">Invite</span>
           </button>
+          <button type="button" class="icon-btn" id="rp-qr" aria-label="Share with QR code" title="QR code">${icon('qr', 19)}</button>
           <button type="button" class="icon-btn" id="rp-details" aria-label="Room details"
                   aria-expanded="false" aria-controls="rp-drawer" title="Details">${icon('panel', 19)}</button>
         </header>
@@ -114,6 +115,7 @@ class RoomPanel {
               <code id="rp-invite-url">${escHtml(this._inviteUrl())}</code>
               <button type="button" class="btn btn-ghost btn-sm" data-act="copy-invite">${icon('link', 15)} Copy</button>
             </div>
+            <button type="button" class="btn btn-secondary btn-sm invite-qr-btn" data-act="show-qr">${icon('qr', 15)} Show QR code</button>
             <p class="invite-hint">Anyone with this link can join after signing in.</p>
           </section>
           <section class="drawer-section">
@@ -139,6 +141,7 @@ class RoomPanel {
       avatars:    q('rp-presence-avatars'),
       presenceTx: q('rp-presence-text'),
       invite:     q('rp-invite'),
+      qr:         q('rp-qr'),
       details:    q('rp-details'),
       timeline:   q('rp-timeline'),
       jump:       q('rp-jump'),
@@ -182,11 +185,13 @@ class RoomPanel {
     this._el.details.addEventListener('click', () => this._openDrawer());
     this._el.presence.addEventListener('click', () => this._openDrawer());
     this._el.invite.addEventListener('click', () => this._copyInvite(this._el.invite, `${icon('check', 16)}<span class="btn-label">Copied</span>`));
+    this._el.qr.addEventListener('click', () => this._showQR());
 
     this._el.drawer.addEventListener('click', (e) => {
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (act === 'close-drawer') this._drawer?.close();
       if (act === 'copy-invite')  this._copyInvite(e.target.closest('[data-act]'), `${icon('check', 15)} Copied`);
+      if (act === 'show-qr') this._showQR();
       if (act === 'edit')   this._openEditModal();
       if (act === 'delete') this._deleteRoom();
       if (act === 'leave')  this._leaveRoom();
@@ -208,6 +213,75 @@ class RoomPanel {
     } else {
       showToast('Couldn\'t copy. The link is in Room details.', 'error');
     }
+  }
+
+  // ── QR code ─────────────────────────────────────────────────────────────
+
+  async _showQR() {
+    const r    = this.room;
+    const url  = this._inviteUrl();
+    const id   = 'qr-' + Math.random().toString(36).slice(2, 8);
+    let objUrl = null;
+    let blob   = null;
+    let closed = false;
+
+    const { modal, layer } = createModal({
+      size: 'sm',
+      cls: 'qr-card',
+      labelledBy: id,
+      onClose: () => { closed = true; if (objUrl) URL.revokeObjectURL(objUrl); },
+      html: `
+        <button type="button" class="icon-btn modal-close" data-close aria-label="Close">${icon('close', 18)}</button>
+        <h2 class="modal-title" id="${id}">Scan to join</h2>
+        <p class="qr-room-name">${escHtml(r.name)}</p>
+        <div class="qr-frame" data-qr><div class="spinner"></div></div>
+        <code class="qr-url">${escHtml(url)}</code>
+        <div class="qr-actions">
+          <button type="button" class="btn btn-secondary btn-sm" data-act="copy">${icon('link', 15)} Copy link</button>
+          <button type="button" class="btn btn-secondary btn-sm" data-act="download" disabled>${icon('download', 15)} Download</button>
+          ${navigator.share ? `<button type="button" class="btn btn-primary btn-sm" data-act="share">${icon('share', 15)} Share…</button>` : ''}
+        </div>
+        <p class="invite-hint">Anyone who scans this can join after signing in.</p>`,
+    });
+
+    modal.addEventListener('click', async (e) => {
+      const el = e.target.closest('[data-act], [data-close]');
+      if (!el) return;
+      if (el.hasAttribute('data-close')) { layer.close(); return; }
+      const act = el.dataset.act;
+      if (act === 'copy') this._copyInvite(el, `${icon('check', 15)} Copied`);
+      if (act === 'download' && objUrl) {
+        const a = document.createElement('a');
+        a.href = objUrl;
+        a.download = `${(r.name || 'room').replace(/[^\w-]+/g, '-').replace(/^-+|-+$/g, '') || 'room'}-qr.svg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      if (act === 'share') {
+        try {
+          await navigator.share({ title: `Join ${r.name} on Solo Chat`, url });
+        } catch { /* user dismissed the share sheet */ }
+      }
+    });
+
+    const frame = modal.querySelector('[data-qr]');
+    try {
+      const res = await apiFetch(`/api/rooms/${r.slug}/qr/`);
+      if (!res.ok) throw new Error(String(res.status));
+      blob = await res.blob();
+    } catch {
+      frame.innerHTML = '<p class="qr-error">The QR code didn\'t load. You can still copy the link.</p>';
+      return;
+    }
+    if (closed) return;
+    // Shown as an <img>, never parsed into the page, so the SVG can't run script.
+    objUrl = URL.createObjectURL(blob);
+    const img = document.createElement('img');
+    img.src = objUrl;
+    img.alt = `QR code for the invite link to ${r.name}`;
+    frame.replaceChildren(img);
+    modal.querySelector('[data-act="download"]').disabled = false;
   }
 
   // ── Drawer ──────────────────────────────────────────────────────────────

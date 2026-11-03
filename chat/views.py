@@ -1,5 +1,10 @@
+import io
+
+import segno
 from django.core.exceptions import ValidationError
+from django.http import HttpResponse
 from django.shortcuts import render
+from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser
@@ -428,3 +433,34 @@ class AuthenticatedMediaUploadView(APIView):
             MessageSerializer(message, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
         )
+
+
+class RoomQRCodeView(APIView):
+    """SVG QR code of the room's invite link, for members to share in person."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, slug):
+        room, membership = RoomService.get_with_membership(request.user, slug)
+        if room is None:
+            return Response(
+                {"error": "Room not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        if membership is None:
+            return Response(
+                {"error": "Not a member."}, status=status.HTTP_403_FORBIDDEN
+            )
+
+        url = request.build_absolute_uri(
+            reverse("page-join", kwargs={"slug": room.slug})
+        )
+        # Black on white whatever the theme: scanners need the contrast.
+        # A standalone file (not svg_inline) so it keeps its xmlns and renders
+        # as an <img> and as a downloaded .svg.
+        buff = io.BytesIO()
+        segno.make(url, error="m").save(
+            buff, kind="svg", scale=8, border=2, dark="#000", light="#fff", nl=False
+        )
+        response = HttpResponse(buff.getvalue(), content_type="image/svg+xml")
+        response["Cache-Control"] = "private, max-age=86400"
+        return response

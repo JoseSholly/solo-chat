@@ -58,6 +58,7 @@ Reset links look like `<site>/reset-password/<uid>/<token>/`, are built with Dja
 | `POST` | `rooms/<slug>/upload/` | ✓ member | Upload image or voice note (multipart) |
 | `PATCH` | `rooms/<slug>/seen/` | ✓ member | Manually mark room as read |
 | `GET` | `rooms/<slug>/members/` | ✓ member | Paginated member list (`limit`, `offset`) |
+| `GET` | `rooms/<slug>/qr/` | ✓ member | Invite link as an SVG QR code |
 | `POST` | `rooms/<slug>/leave/` | ✓ member | Leave a room (creator cannot leave) |
 | `DELETE` | `rooms/<slug>/delete/` | ✓ creator | Permanently delete a room |
 | `GET` | `invite/<slug>/` | public | Resolve invite link — room info + member count |
